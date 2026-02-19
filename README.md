@@ -1,60 +1,79 @@
-# Proyecto Final React
+# Proyecto Final - Sistema de Reservaciones de Restaurante
 
-Proyecto creado con React y Vite, organizado con estructura modular.
+Sistema de gestión de reservaciones para restaurante desarrollado con React y Vite.
 
-## Estructura del Proyecto
+## 🚀 Características
+
+- **Módulo Admin**: Gestión de días disponibles para reservaciones
+- **Módulo Cliente**: Realización de reservaciones
+- **Módulo Recepcionista**: Validación y gestión de reservaciones
+- **Autenticación**: Sistema de login con roles (Admin, Cliente, Recepcionista)
+
+## 🛠️ Tecnologías
+
+- React 18
+- Vite
+- React Router DOM
+- CSS3
+
+## 📦 Instalación
+
+```bash
+# Instalar dependencias
+npm install
+
+# Ejecutar en modo desarrollo
+npm run dev
+
+# Crear build de producción
+npm run build
+```
+
+## 📁 Estructura del Proyecto
 
 ```
 src/
 ├── modules/           # Módulos de la aplicación
+│   ├── admin/        # Módulo de administración
+│   ├── cliente/      # Módulo de cliente
+│   ├── recepcionista/# Módulo de recepcionista
 │   └── auth/         # Módulo de autenticación
-│       ├── components/    # Componentes del módulo
-│       │   ├── Login.jsx
-│       │   └── Register.jsx
-│       ├── services/      # Servicios/API del módulo
-│       │   └── authService.js
-│       └── index.js       # Exportaciones del módulo
-├── components/       # Componentes reutilizables globales
-├── styles/          # Estilos globales y compartidos
-│   └── auth.css
-├── services/        # Servicios globales
-├── utils/           # Utilidades y helpers
-├── App.jsx          # Componente principal
-└── main.jsx         # Punto de entrada
+├── components/       # Componentes reutilizables
+├── styles/           # Estilos globales
+└── App.jsx           # Componente principal
 ```
 
-## Comandos disponibles
+## 👥 Roles del Sistema
 
-### Instalar dependencias
-```bash
-npm install
-```
+### Administrador
+- Crear días disponibles para reservaciones
+- Gestionar horarios y capacidad máxima
+- Ver estadísticas de reservaciones
 
-### Ejecutar en modo desarrollo
-```bash
-npm run dev
-```
+### Cliente
+- Ver días disponibles
+- Realizar reservaciones
+- Seleccionar fecha y hora
 
-### Crear build de producción
-```bash
-npm run build
-```
+### Recepcionista
+- Ver todas las reservaciones
+- Confirmar reservaciones pendientes
+- Cancelar reservaciones
+- Filtrar por estado
 
-### Previsualizar build de producción
-```bash
-npm run preview
-```
+## 🔐 Autenticación
 
-## Organización Modular
+El sistema actualmente usa autenticación hardcodeada para desarrollo. Los roles disponibles son:
+- Admin
+- Cliente
+- Recepcionista
 
-Cada módulo (como `auth`) contiene:
-- **components/**: Componentes específicos del módulo
-- **services/**: Llamadas a APIs relacionadas con el módulo
-- **styles/**: Estilos específicos (si los hay)
-- **index.js**: Exportaciones centralizadas del módulo
+## 📝 Notas
 
-Esta estructura facilita:
-- Escalabilidad: Fácil agregar nuevos módulos
-- Mantenibilidad: Todo relacionado está junto
-- Reutilización: Componentes y servicios organizados
-- Colaboración: Estructura clara para equipos
+- Los datos se almacenan temporalmente en localStorage
+- Listo para integrar con backend API
+- Diseño responsive y moderno
+
+## 📄 Licencia
+
+Este proyecto es parte del trabajo final del curso.
