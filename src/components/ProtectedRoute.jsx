@@ -7,11 +7,11 @@ function ProtectedRoute({ children, requiredRole }) {
     return <Navigate to="/login" replace />
   }
 
-  if (requiredRole && userRole !== requiredRole) {
-    // Redirigir al dashboard correspondiente al rol del usuario
-    const rolePath = userRole.toLowerCase()
-    return <Navigate to={`/${rolePath}`} replace />
-  }
+  // Temporal: sin restricción de rol mientras se implementan los módulos
+  // if (requiredRole && userRole !== requiredRole) {
+  //   const rolePath = userRole.toLowerCase()
+  //   return <Navigate to={`/${rolePath}`} replace />
+  // }
 
   return children
 }

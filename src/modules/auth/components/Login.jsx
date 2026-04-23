@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { GoogleLogin } from '@react-oauth/google'
+import { login, loginWithGoogle } from '../services/authService'
 import '../../../styles/auth.css'
 
 function Login() {
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    role: '' // Admin, Cliente, Recepcionista
+    userNameOrEmail: '',
+    password: ''
   })
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const navigate = useNavigate()
 
   const handleChange = (e) => {
@@ -24,50 +27,59 @@ function Login() {
     setError('')
 
     // Validación básica
-    if (!formData.email || !formData.password || !formData.role) {
+    if (!formData.userNameOrEmail || !formData.password) {
       setError('Por favor completa todos los campos')
       return
     }
 
-    // Hardcodeado mientras no se integre el backend
-    try {
-      // Simular login exitoso
-      localStorage.setItem('userRole', formData.role)
-      localStorage.setItem('userEmail', formData.email)
-      
-      // Redirigir según el rol
-      switch (formData.role) {
-        case 'Admin':
-          navigate('/admin')
-          break
-        case 'Cliente':
-          navigate('/cliente')
-          break
-        case 'Recepcionista':
-          navigate('/recepcionista')
-          break
-        default:
-          setError('Rol no válido')
-      }
-      
-      // TODO: Conectar con el servicio de autenticación real
-      // const response = await fetch('/api/login', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(formData)
-      // })
-      
-      // if (response.ok) {
-      //   const data = await response.json()
-      //   localStorage.setItem('token', data.token)
-      //   localStorage.setItem('userRole', data.role)
-      //   navigate(`/${data.role.toLowerCase()}`)
-      // } else {
-      //   setError('Credenciales incorrectas')
-      // }
-    } catch (err) {
-      setError('Error al iniciar sesión. Intenta nuevamente.')
+    // ─── BYPASS TEMPORAL PARA PRUEBAS DE ADMIN ───────────────────────────────
+    // Eliminar esto cuando el backend incluya el rol en el JWT
+    if (formData.userNameOrEmail === 'admin' && formData.password === 'Admin@123') {
+      localStorage.setItem('userRole', 'Admin')
+      localStorage.setItem('token', 'dev-admin-token')
+      localStorage.setItem('user', JSON.stringify({ userName: 'admin', firstName: 'Admin', lastName: 'Dev' }))
+      navigate('/admin')
+      return
     }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    setLoading(true)
+
+    try {
+      const data = await login({
+        userNameOrEmail: formData.userNameOrEmail,
+        password: formData.password
+      })
+      
+      // Temporal: todos van al admin mientras se implementan los demás módulos
+      navigate('/admin')
+    } catch (err) {
+      setError(err.message || 'Error al iniciar sesión. Verifica tus credenciales.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError('')
+    setLoading(true)
+    try {
+      const data = await loginWithGoogle(credentialResponse.credential)
+      const role = data.role
+      switch (role) {
+        case 'Admin': navigate('/admin'); break
+        case 'Recepcionista': navigate('/recepcionista'); break
+        default: navigate('/cliente')
+      }
+    } catch (err) {
+      setError(err.message || 'Error al iniciar sesión con Google.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoogleError = () => {
+    setError('No se pudo iniciar sesión con Google. Inténtalo nuevamente.')
   }
 
   return (
@@ -78,50 +90,45 @@ function Login() {
           <p>Inicia sesión en tu cuenta</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={handleSubmit} className="auth-form" autoComplete="off">
           {error && <div className="error-message">{error}</div>}
 
           <div className="form-group">
-            <label htmlFor="email">Correo electrónico</label>
+            <label htmlFor="userNameOrEmail">Nombre de usuario o correo</label>
             <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
+              type="text"
+              id="userNameOrEmail"
+              name="userNameOrEmail"
+              value={formData.userNameOrEmail}
               onChange={handleChange}
-              placeholder="tu@email.com"
+              placeholder="tu_usuario o correo@email.com"
+              autoComplete="off"
               required
             />
           </div>
 
           <div className="form-group">
             <label htmlFor="password">Contraseña</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="••••••••"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="role">Rol</label>
-            <select
-              id="role"
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              required
-              className="form-select"
-            >
-              <option value="">Selecciona un rol</option>
-              <option value="Admin">Administrador</option>
-              <option value="Cliente">Cliente</option>
-              <option value="Recepcionista">Recepcionista</option>
-            </select>
+            <div className="input-password-wrapper">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                required
+              />
+              <button
+                type="button"
+                className="toggle-password"
+                onClick={() => setShowPassword(!showPassword)}
+                title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
           </div>
 
           <div className="form-options">
@@ -134,10 +141,25 @@ function Login() {
             </Link>
           </div>
 
-          <button type="submit" className="auth-button">
-            Iniciar sesión
+          <button type="submit" className="auth-button" disabled={loading}>
+            {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
           </button>
         </form>
+
+        <div className="auth-divider">
+          <span>o continúa con</span>
+        </div>
+
+        <div className="google-login-wrapper">
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={handleGoogleError}
+            useOneTap={false}
+            text="signin_with"
+            shape="rectangular"
+            locale="es"
+          />
+        </div>
 
         <div className="auth-footer">
           <p>

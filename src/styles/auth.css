@@ -224,3 +224,58 @@
   text-decoration: underline;
 }
 
+/* Wrapper para input de contraseña con botón mostrar/ocultar */
+.input-password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-password-wrapper input {
+  width: 100%;
+  padding-right: 48px; /* Espacio para el ojo */
+}
+
+.toggle-password {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  line-height: 1;
+  color: #999;
+  transition: color 0.2s ease;
+  user-select: none;
+}
+
+.toggle-password:hover {
+  color: #20b2aa;
+}
+
+/* Divisor "o continúa con" */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 40px 20px;
+  color: #999;
+  font-size: 13px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e0e0e0;
+}
+
+/* Wrapper del botón de Google centrado */
+.google-login-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 0 40px 30px;
+}
+
