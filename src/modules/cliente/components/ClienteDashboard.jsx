@@ -1,101 +1,108 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { getAvailableDays, createBooking } from '../services/clienteService'
-import '../styles/cliente.css'
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { getAvailableDays, createBooking } from "../services/clienteService";
+import "../styles/cliente.css";
 
 function ClienteDashboard() {
-  const [availableDays, setAvailableDays] = useState([])
-  const [selectedDay, setSelectedDay] = useState(null)
+  const [availableDays, setAvailableDays] = useState([]);
+  const [selectedDay, setSelectedDay] = useState(null);
   const [formData, setFormData] = useState({
-    dateAndTime: '',
-    bookedByClientName: ''
-  })
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
+    dateAndTime: "",
+    bookedByClientName: "",
+  });
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    loadAvailableDays()
-  }, [])
+    loadAvailableDays();
+  }, []);
 
   const loadAvailableDays = async () => {
     try {
-      setLoading(true)
-      const days = await getAvailableDays()
-      setAvailableDays(days)
+      setLoading(true);
+      const days = await getAvailableDays();
+      setAvailableDays(days);
     } catch (err) {
-      setError('Error al cargar días disponibles')
+      setError("Error al cargar días disponibles");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleDaySelect = (day) => {
-    setSelectedDay(day)
+    setSelectedDay(day);
     setFormData({
       dateAndTime: `${day.date}T${day.startTime}`,
-      bookedByClientName: ''
-    })
-    setError('')
-    setSuccess('')
-  }
+      bookedByClientName: "",
+    });
+    setError("");
+    setSuccess("");
+  };
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
-    })
-    setError('')
-  }
+      [e.target.name]: e.target.value,
+    });
+    setError("");
+  };
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setSuccess('')
+    e.preventDefault();
+    setError("");
+    setSuccess("");
 
-    if (!formData.dateAndTime || !formData.bookedByClientName) {
-      setError('Por favor completa todos los campos')
-      return
+    if (!formData.bookedByClientName) {
+      setError("Por favor ingresa tu nombre completo");
+      return;
     }
 
     if (!selectedDay) {
-      setError('Por favor selecciona un día disponible')
-      return
+      setError("Por favor selecciona un día disponible");
+      return;
     }
 
     try {
-      setLoading(true)
-      const booking = await createBooking({
+      setLoading(true);
+      await createBooking({
         dateAndTime: formData.dateAndTime,
         bookedByClientName: formData.bookedByClientName,
-        availableDayId: selectedDay.id
-      })
-      setSuccess('¡Reservación creada exitosamente!')
-      setFormData({ dateAndTime: '', bookedByClientName: '' })
-      setSelectedDay(null)
-      await loadAvailableDays()
+        availableDayId: selectedDay.timeSlotId, // ← usa el timeSlotId real
+        numeroPersonas: 1,
+        comentarios: "",
+      });
+      setSuccess("¡Reservación creada exitosamente!");
+      setFormData({ dateAndTime: "", bookedByClientName: "" });
+      setSelectedDay(null);
+      await loadAvailableDays();
     } catch (err) {
-      setError(err.message || 'Error al crear la reservación')
+      setError(err.message || "Error al crear la reservación");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleLogout = () => {
-    localStorage.removeItem('userRole')
-    localStorage.removeItem('userEmail')
-    navigate('/login')
-  }
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userEmail");
+    navigate("/login");
+  };
 
   // Calcular estadísticas
-  const totalDays = availableDays.length
+  const totalDays = availableDays.length;
   const availableSlots = availableDays.reduce((sum, day) => {
-    const available = day.maxBookings - (day.currentBookings || 0)
-    return sum + (available > 0 ? available : 0)
-  }, 0)
-  const totalBookings = availableDays.reduce((sum, day) => sum + (day.currentBookings || 0), 0)
-  const fullDays = availableDays.filter(day => (day.currentBookings || 0) >= day.maxBookings).length
+    const available = day.maxBookings - (day.currentBookings || 0);
+    return sum + (available > 0 ? available : 0);
+  }, 0);
+  const totalBookings = availableDays.reduce(
+    (sum, day) => sum + (day.currentBookings || 0),
+    0,
+  );
+  const fullDays = availableDays.filter(
+    (day) => (day.currentBookings || 0) >= day.maxBookings,
+  ).length;
 
   return (
     <div className="cliente-container">
@@ -141,9 +148,9 @@ function ClienteDashboard() {
         <div className="days-section">
           <div className="section-header">
             <h2>Días Disponibles</h2>
-            <input 
-              type="text" 
-              placeholder="Buscar día..." 
+            <input
+              type="text"
+              placeholder="Buscar día..."
               className="search-input"
             />
           </div>
@@ -157,24 +164,29 @@ function ClienteDashboard() {
           ) : (
             <div className="days-grid">
               {availableDays.map((day) => {
-                const isFull = (day.currentBookings || 0) >= day.maxBookings
-                const availability = day.maxBookings - (day.currentBookings || 0)
-                const percentage = ((day.currentBookings || 0) / day.maxBookings) * 100
-                
+                const isFull = (day.currentBookings || 0) >= day.maxBookings;
+                const availability =
+                  day.maxBookings - (day.currentBookings || 0);
+                const percentage =
+                  ((day.currentBookings || 0) / day.maxBookings) * 100;
+
                 return (
                   <div
                     key={day.id}
-                    className={`day-card ${isFull ? 'full' : ''} ${selectedDay?.id === day.id ? 'selected' : ''}`}
+                    className={`day-card ${isFull ? "full" : ""} ${selectedDay?.id === day.id ? "selected" : ""}`}
                     onClick={() => !isFull && handleDaySelect(day)}
                   >
                     <div className="day-card-header">
                       <div className="day-date">
-                        {new Date(day.date).toLocaleDateString('es-ES', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
+                        {new Date(day.date + "T12:00:00").toLocaleDateString(
+                          "es-ES",
+                          {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          },
+                        )}
                       </div>
                       {isFull && <span className="full-badge">Completo</span>}
                     </div>
@@ -185,32 +197,37 @@ function ClienteDashboard() {
                     <div className="day-availability">
                       <div className="availability-info">
                         <span className="availability-text">
-                          {day.currentBookings || 0} / {day.maxBookings} reservaciones
+                          {day.currentBookings || 0} / {day.maxBookings}{" "}
+                          reservaciones
                         </span>
-                        <span className={`availability-badge ${availability > 0 ? 'available' : 'full'}`}>
-                          {availability > 0 ? `${availability} disponibles` : 'Sin disponibilidad'}
+                        <span
+                          className={`availability-badge ${availability > 0 ? "available" : "full"}`}
+                        >
+                          {availability > 0
+                            ? `${availability} disponibles`
+                            : "Sin disponibilidad"}
                         </span>
                       </div>
                       <div className="progress-bar">
-                        <div 
-                          className="progress-fill" 
+                        <div
+                          className="progress-fill"
                           style={{ width: `${percentage}%` }}
                         ></div>
                       </div>
                     </div>
                     {!isFull && (
-                      <button 
+                      <button
                         className="select-button"
                         onClick={(e) => {
-                          e.stopPropagation()
-                          handleDaySelect(day)
+                          e.stopPropagation();
+                          handleDaySelect(day);
                         }}
                       >
                         Seleccionar
                       </button>
                     )}
                   </div>
-                )
+                );
               })}
             </div>
           )}
@@ -219,18 +236,21 @@ function ClienteDashboard() {
 
       {/* Booking Modal */}
       {selectedDay && (
-        <div className="modal-overlay" onClick={() => {
-          setSelectedDay(null)
-          setFormData({ dateAndTime: '', bookedByClientName: '' })
-        }}>
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setSelectedDay(null);
+            setFormData({ dateAndTime: "", bookedByClientName: "" });
+          }}
+        >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Completa tu Reservación</h2>
-              <button 
+              <button
                 onClick={() => {
-                  setSelectedDay(null)
-                  setFormData({ dateAndTime: '', bookedByClientName: '' })
-                }} 
+                  setSelectedDay(null);
+                  setFormData({ dateAndTime: "", bookedByClientName: "" });
+                }}
                 className="close-button"
               >
                 ×
@@ -241,22 +261,28 @@ function ClienteDashboard() {
                 <div className="summary-item">
                   <span className="summary-label">Fecha:</span>
                   <span className="summary-value">
-                    {new Date(selectedDay.date).toLocaleDateString('es-ES', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
+                    {new Date(
+                      selectedDay.date + "T12:00:00",
+                    ).toLocaleDateString("es-ES", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
                     })}
                   </span>
                 </div>
                 <div className="summary-item">
                   <span className="summary-label">Horario:</span>
-                  <span className="summary-value">{selectedDay.startTime} - {selectedDay.endTime}</span>
+                  <span className="summary-value">
+                    {selectedDay.startTime} - {selectedDay.endTime}
+                  </span>
                 </div>
                 <div className="summary-item">
                   <span className="summary-label">Disponibilidad:</span>
                   <span className="summary-value">
-                    {selectedDay.maxBookings - (selectedDay.currentBookings || 0)} lugares disponibles
+                    {selectedDay.maxBookings -
+                      (selectedDay.currentBookings || 0)}{" "}
+                    lugares disponibles
                   </span>
                 </div>
               </div>
@@ -295,15 +321,19 @@ function ClienteDashboard() {
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedDay(null)
-                    setFormData({ dateAndTime: '', bookedByClientName: '' })
+                    setSelectedDay(null);
+                    setFormData({ dateAndTime: "", bookedByClientName: "" });
                   }}
                   className="cancel-button"
                 >
                   Cancelar
                 </button>
-                <button type="submit" className="submit-button" disabled={loading}>
-                  {loading ? 'Reservando...' : 'Confirmar Reservación'}
+                <button
+                  type="submit"
+                  className="submit-button"
+                  disabled={loading}
+                >
+                  {loading ? "Reservando..." : "Confirmar Reservación"}
                 </button>
               </div>
             </form>
@@ -311,8 +341,7 @@ function ClienteDashboard() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default ClienteDashboard
-
+export default ClienteDashboard;

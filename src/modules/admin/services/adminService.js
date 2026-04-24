@@ -310,14 +310,14 @@ export const getDashboardStats = async () => {
 };
 
 export const getAvailabilityList = async () => {
-  const response = await fetch(`${API_BASE_URL}/Availability`, {
-    headers: authHeaders(),
-  });
-  if (!response.ok)
-    throw new Error("Error al obtener la lista de disponibilidades");
-  return await response.json();
+  const token = localStorage.getItem("token");
+  const res = await fetch(
+    "https://proyectofinalitlabackend-production.up.railway.app/api/Availability/all",
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) throw new Error("Error al obtener disponibilidades");
+  return res.json();
 };
-
 /**
  * Obtiene las reservas de hoy
  */

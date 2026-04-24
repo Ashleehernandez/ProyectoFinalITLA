@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   getConfig,
@@ -24,6 +24,600 @@ import {
 } from "../services/adminService";
 import "../styles/admin.css";
 
+/* ═══════════════════════════════════════════════════════════
+   CALENDAR COMPONENT — Full featured date picker
+═══════════════════════════════════════════════════════════ */
+const DAYS_ES = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"];
+const MONTHS_ES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
+function CalendarPicker({
+  value,
+  onChange,
+  minDate,
+  maxDate,
+  label,
+  placeholder = "Seleccionar fecha",
+}) {
+  const [open, setOpen] = useState(false);
+  const [viewYear, setViewYear] = useState(null);
+  const [viewMonth, setViewMonth] = useState(null);
+  const ref = useRef(null);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const selected = value ? new Date(value + "T00:00:00") : null;
+
+  useEffect(() => {
+    const base = selected || today;
+    setViewYear(base.getFullYear());
+    setViewMonth(base.getMonth());
+  }, [value]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+  const getFirstDay = (y, m) => new Date(y, m, 1).getDay();
+
+  const prevMonth = () => {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear((y) => y - 1);
+    } else setViewMonth((m) => m - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear((y) => y + 1);
+    } else setViewMonth((m) => m + 1);
+  };
+
+  const toISO = (y, m, d) =>
+    `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+  const isDisabled = (y, m, d) => {
+    const iso = toISO(y, m, d);
+    if (minDate && iso < minDate) return true;
+    if (maxDate && iso > maxDate) return true;
+    return false;
+  };
+
+  const handleDay = (d) => {
+    const iso = toISO(viewYear, viewMonth, d);
+    if (!isDisabled(viewYear, viewMonth, d)) {
+      onChange(iso);
+      setOpen(false);
+    }
+  };
+
+  const displayValue = selected
+    ? selected.toLocaleDateString("es-ES", {
+        weekday: "short",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    : "";
+
+  const days = getDaysInMonth(
+    viewYear ?? today.getFullYear(),
+    viewMonth ?? today.getMonth(),
+  );
+  const firstDay = getFirstDay(
+    viewYear ?? today.getFullYear(),
+    viewMonth ?? today.getMonth(),
+  );
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      {label && <label style={styles.label}>{label}</label>}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          ...styles.calInput,
+          color: selected ? "#111827" : "#9ca3af",
+        }}
+      >
+        <span style={{ fontSize: "16px" }}>📅</span>
+        <span style={{ flex: 1, textAlign: "left" }}>
+          {displayValue || placeholder}
+        </span>
+        <span style={{ fontSize: "12px", color: "#9ca3af" }}>▼</span>
+      </button>
+
+      {open && viewYear !== null && viewMonth !== null && (
+        <div style={styles.calPopup}>
+          {/* Header */}
+          <div style={styles.calHeader}>
+            <button type="button" onClick={prevMonth} style={styles.calNav}>
+              ‹
+            </button>
+            <span style={styles.calTitle}>
+              {MONTHS_ES[viewMonth]} {viewYear}
+            </span>
+            <button type="button" onClick={nextMonth} style={styles.calNav}>
+              ›
+            </button>
+          </div>
+
+          {/* Day names */}
+          <div style={styles.calGrid}>
+            {DAYS_ES.map((d) => (
+              <div key={d} style={styles.calDayName}>
+                {d}
+              </div>
+            ))}
+            {/* Empty cells */}
+            {Array.from({ length: firstDay }).map((_, i) => (
+              <div key={`e${i}`} />
+            ))}
+            {/* Days */}
+            {Array.from({ length: days }, (_, i) => i + 1).map((d) => {
+              const iso = toISO(viewYear, viewMonth, d);
+              const isSelected = value === iso;
+              const disabled = isDisabled(viewYear, viewMonth, d);
+              const isToday =
+                iso ===
+                toISO(today.getFullYear(), today.getMonth(), today.getDate());
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => handleDay(d)}
+                  disabled={disabled}
+                  style={{
+                    ...styles.calDay,
+                    ...(isSelected ? styles.calDaySelected : {}),
+                    ...(isToday && !isSelected ? styles.calDayToday : {}),
+                    ...(disabled ? styles.calDayDisabled : {}),
+                  }}
+                >
+                  {d}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Today shortcut */}
+          <div style={{ padding: "8px 12px", borderTop: "1px solid #f3f4f6" }}>
+            <button
+              type="button"
+              onClick={() => {
+                const iso = toISO(
+                  today.getFullYear(),
+                  today.getMonth(),
+                  today.getDate(),
+                );
+                if (
+                  !isDisabled(
+                    today.getFullYear(),
+                    today.getMonth(),
+                    today.getDate(),
+                  )
+                ) {
+                  onChange(iso);
+                  setOpen(false);
+                }
+              }}
+              style={styles.calTodayBtn}
+            >
+              Hoy
+            </button>
+            {value && (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+                style={{
+                  ...styles.calTodayBtn,
+                  marginLeft: "8px",
+                  color: "#dc2626",
+                }}
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DATE RANGE PICKER — Two calendars side by side
+═══════════════════════════════════════════════════════════ */
+function DateRangePicker({
+  startDate,
+  endDate,
+  onStartChange,
+  onEndChange,
+  label,
+}) {
+  return (
+    <div>
+      {label && (
+        <label
+          style={{ ...styles.label, marginBottom: "8px", display: "block" }}
+        >
+          {label}
+        </label>
+      )}
+      <div
+        style={{
+          display: "flex",
+          gap: "12px",
+          flexWrap: "wrap",
+          alignItems: "flex-start",
+        }}
+      >
+        <div style={{ flex: "1", minWidth: "180px" }}>
+          <CalendarPicker
+            value={startDate}
+            onChange={onStartChange}
+            label="Fecha Inicio"
+            placeholder="Desde..."
+            maxDate={endDate || undefined}
+          />
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            paddingTop: "32px",
+            color: "#9ca3af",
+            fontWeight: "600",
+          }}
+        >
+          →
+        </div>
+        <div style={{ flex: "1", minWidth: "180px" }}>
+          <CalendarPicker
+            value={endDate}
+            onChange={onEndChange}
+            label="Fecha Fin"
+            placeholder="Hasta..."
+            minDate={startDate || undefined}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TIME PICKER — Visual clock-style selector
+═══════════════════════════════════════════════════════════ */
+function TimePicker({
+  value,
+  onChange,
+  label,
+  placeholder = "Seleccionar hora",
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  const [hour, minute] = value ? value.split(":").map(Number) : [null, null];
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const formatDisplay = (h, m) => {
+    if (h === null) return "";
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+  };
+
+  const quickTimes = [
+    "08:00",
+    "09:00",
+    "10:00",
+    "11:00",
+    "12:00",
+    "13:00",
+    "14:00",
+    "15:00",
+    "16:00",
+    "17:00",
+    "18:00",
+    "19:00",
+    "20:00",
+    "21:00",
+    "22:00",
+    "23:00",
+  ];
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      {label && <label style={styles.label}>{label}</label>}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          ...styles.calInput,
+          color: value ? "#111827" : "#9ca3af",
+        }}
+      >
+        <span style={{ fontSize: "16px" }}>🕐</span>
+        <span style={{ flex: 1, textAlign: "left" }}>
+          {value ? formatDisplay(hour, minute) : placeholder}
+        </span>
+        <span style={{ fontSize: "12px", color: "#9ca3af" }}>▼</span>
+      </button>
+
+      {open && (
+        <div style={{ ...styles.calPopup, width: "220px" }}>
+          <div style={{ padding: "12px", borderBottom: "1px solid #f3f4f6" }}>
+            <p
+              style={{
+                fontSize: "12px",
+                color: "#6b7280",
+                fontWeight: "600",
+                margin: "0 0 8px",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Hora rápida
+            </p>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr 1fr",
+                gap: "4px",
+              }}
+            >
+              {quickTimes.map((t) => {
+                const [h] = t.split(":").map(Number);
+                const ampm = h >= 12 ? "PM" : "AM";
+                const h12 = h % 12 === 0 ? 12 : h % 12;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      onChange(t);
+                      setOpen(false);
+                    }}
+                    style={{
+                      padding: "6px 4px",
+                      fontSize: "12px",
+                      border: "1px solid",
+                      borderColor: value === t ? "#6d28d9" : "#e5e7eb",
+                      borderRadius: "6px",
+                      background: value === t ? "#6d28d9" : "white",
+                      color: value === t ? "white" : "#374151",
+                      cursor: "pointer",
+                      fontWeight: value === t ? "700" : "400",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {String(h12).padStart(2, "0")}
+                    <br />
+                    <span style={{ fontSize: "10px", opacity: 0.7 }}>
+                      {ampm}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Manual input */}
+          <div style={{ padding: "12px" }}>
+            <p
+              style={{
+                fontSize: "12px",
+                color: "#6b7280",
+                fontWeight: "600",
+                margin: "0 0 8px",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              Hora exacta
+            </p>
+            <input
+              type="time"
+              value={value || ""}
+              onChange={(e) => {
+                onChange(e.target.value);
+              }}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                border: "1px solid #e5e7eb",
+                borderRadius: "8px",
+                fontSize: "14px",
+                outline: "none",
+                boxSizing: "border-box",
+                fontFamily: "monospace",
+              }}
+            />
+          </div>
+
+          {value && (
+            <div style={{ padding: "0 12px 12px" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+                style={{
+                  ...styles.calTodayBtn,
+                  color: "#dc2626",
+                  width: "100%",
+                }}
+              >
+                Limpiar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INLINE STYLES
+═══════════════════════════════════════════════════════════ */
+const styles = {
+  label: {
+    display: "block",
+    fontSize: "13px",
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: "6px",
+  },
+  calInput: {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    padding: "11px 14px",
+    border: "1.5px solid #e5e7eb",
+    borderRadius: "10px",
+    background: "white",
+    cursor: "pointer",
+    fontSize: "14px",
+    transition: "border-color 0.2s, box-shadow 0.2s",
+    boxSizing: "border-box",
+    textAlign: "left",
+    outline: "none",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+  },
+  calPopup: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    left: 0,
+    zIndex: 1000,
+    background: "white",
+    border: "1px solid #e5e7eb",
+    borderRadius: "14px",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.08)",
+    width: "300px",
+    overflow: "hidden",
+    animation: "calFadeIn 0.15s ease",
+  },
+  calHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "14px 16px",
+    borderBottom: "1px solid #f3f4f6",
+    background: "#fafafa",
+  },
+  calNav: {
+    background: "white",
+    border: "1px solid #e5e7eb",
+    borderRadius: "8px",
+    width: "32px",
+    height: "32px",
+    cursor: "pointer",
+    fontSize: "18px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#374151",
+    transition: "background 0.15s",
+  },
+  calTitle: {
+    fontSize: "15px",
+    fontWeight: "700",
+    color: "#111827",
+  },
+  calGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(7, 1fr)",
+    gap: "2px",
+    padding: "12px",
+  },
+  calDayName: {
+    textAlign: "center",
+    fontSize: "11px",
+    fontWeight: "700",
+    color: "#9ca3af",
+    padding: "4px 0",
+    textTransform: "uppercase",
+  },
+  calDay: {
+    width: "100%",
+    aspectRatio: "1",
+    border: "none",
+    borderRadius: "8px",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: "13px",
+    fontWeight: "500",
+    color: "#374151",
+    transition: "all 0.15s",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calDaySelected: {
+    background: "#6d28d9",
+    color: "white",
+    fontWeight: "700",
+    boxShadow: "0 2px 8px rgba(109,40,217,0.4)",
+  },
+  calDayToday: {
+    background: "#f3f0ff",
+    color: "#6d28d9",
+    fontWeight: "700",
+    border: "1.5px solid #c4b5fd",
+  },
+  calDayDisabled: {
+    opacity: 0.3,
+    cursor: "not-allowed",
+    background: "transparent",
+  },
+  calTodayBtn: {
+    background: "none",
+    border: "1px solid #e5e7eb",
+    borderRadius: "6px",
+    padding: "5px 12px",
+    fontSize: "12px",
+    cursor: "pointer",
+    color: "#6d28d9",
+    fontWeight: "600",
+    transition: "background 0.15s",
+  },
+};
+
+/* ═══════════════════════════════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════════════════════════════ */
 const MENU_ITEMS = [
   { id: "estadisticas", icon: "📊", label: "Estadísticas" },
   { id: "auditoria", icon: "🔍", label: "Auditoría" },
@@ -45,7 +639,6 @@ const CATEGORIAS_INVENTARIO = [
   { id: 5, name: "Limpieza y Mantenimiento" },
 ];
 
-// Genera las iniciales del nombre para el avatar
 function getInitials(profile) {
   if (!profile) return "?";
   const f = profile.firstName?.[0] || "";
@@ -53,6 +646,9 @@ function getInitials(profile) {
   return (f + l).toUpperCase() || "?";
 }
 
+/* ═══════════════════════════════════════════════════════════
+   MAIN COMPONENT
+═══════════════════════════════════════════════════════════ */
 function AdminDashboard() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState("estadisticas");
@@ -71,7 +667,6 @@ function AdminDashboard() {
   const [inventarioLista, setInventarioLista] = useState([]);
   const [inventarioListaLoading, setInventarioListaLoading] = useState(false);
   const [inventarioListaError, setInventarioListaError] = useState("");
-
   const [showInventarioForm, setShowInventarioForm] = useState(false);
   const [inventarioFormData, setInventarioFormData] = useState({
     nombre: "",
@@ -165,82 +760,6 @@ function AdminDashboard() {
   const [aiSelectedProducts, setAiSelectedProducts] = useState([]);
   const [aiMeses, setAiMeses] = useState(3);
 
-  const handleAIPrediction = async () => {
-    if (!aiSelectedProducts || aiSelectedProducts.length === 0) {
-      setAiError("Por favor seleccione al menos un producto a analizar.");
-      return;
-    }
-
-    setAiLoading(true);
-    setAiError(null);
-
-    try {
-      const productosPayload = [];
-
-      for (const prodName of aiSelectedProducts) {
-        const productoObj = inventarioLista.find((p) => p.nombre === prodName);
-        if (!productoObj) continue;
-
-        try {
-          const historialReal = await getProductoHistorial(productoObj.id);
-
-          if (historialReal && historialReal.length >= 2) {
-            productosPayload.push({
-              producto: prodName,
-              historial: historialReal,
-            });
-          } else {
-            console.warn(
-              `El producto ${prodName} no tiene historial suficiente (mínimo 2 meses).`,
-            );
-          }
-        } catch (e) {
-          console.error(`No se pudo obtener el historial de ${prodName}`, e);
-        }
-      }
-
-      if (productosPayload.length === 0) {
-        throw new Error(
-          "Ninguno de los productos seleccionados tiene suficientes datos históricos (se requieren mínimo 2 meses).",
-        );
-      }
-
-      const payload = {
-        meses_a_predecir: Number(aiMeses),
-        productos: productosPayload,
-      };
-
-      const currentToken = localStorage.getItem("token") || "";
-      const res = await fetch(
-        "https://sigidai-modelmicroservice-production.up.railway.app/predict",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${currentToken}`,
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-
-      if (!res.ok) throw new Error("Falló la conexión con el motor de IA");
-
-      const data = await res.json();
-
-      if (data.resultados) {
-        setAiResults(data.resultados);
-      } else {
-        setAiResults([]);
-      }
-    } catch (err) {
-      setAiError(
-        err.message || "No se pudo generar la predicción. Intente más tarde.",
-      );
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
   // ── Disponibilidad State ──
   const [showDispoForm, setShowDispoForm] = useState(false);
   const [dispoFormData, setDispoFormData] = useState({
@@ -251,68 +770,39 @@ function AdminDashboard() {
   const [dispoLoading, setDispoLoading] = useState(false);
   const [dispoError, setDispoError] = useState("");
   const [dispoSuccess, setDispoSuccess] = useState("");
-
   const [availabilityList, setAvailabilityList] = useState([]);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
 
+  /* ── Loaders ── */
   const loadAvailability = async () => {
     setAvailabilityLoading(true);
     setAvailabilityError("");
     try {
       const data = await getAvailabilityList();
       setAvailabilityList(data);
-    } catch (err) {
+    } catch {
       setAvailabilityError("Error al leer listado de fechas de reserva");
     } finally {
       setAvailabilityLoading(false);
     }
   };
 
-  const handleCreateAvailability = async (e) => {
-    e.preventDefault();
-    setDispoLoading(true);
-    setDispoError("");
-    setDispoSuccess("");
+  const loadStats = async () => {
     try {
-      const payload = {
-        date: dispoFormData.date,
-        timeSlots: [
-          {
-            startTime: dispoFormData.startTime,
-            endTime: dispoFormData.endTime,
-          },
-        ],
-        createdBy: profile?.email || profile?.userName || "Admin",
-      };
-      await createAvailability(payload);
-      setDispoSuccess("Fecha de reserva agregada exitosamente.");
-      setShowDispoForm(false);
-      setDispoFormData({ date: "", startTime: "", endTime: "" });
-      loadAvailability();
-      setTimeout(() => setDispoSuccess(""), 3000);
-    } catch (err) {
-      setDispoError(
-        err.message || "Error al contactar a la API de Disponibilidad",
-      );
+      setStatsLoading(true);
+      const [statsData, reservasHoyData] = await Promise.all([
+        getDashboardStats(),
+        getReservasHoy(),
+      ]);
+      setStats(statsData.data || statsData);
+      setReservasHoy(reservasHoyData.data || reservasHoyData);
+    } catch {
+      setStatsError("No se pudieron cargar las estadísticas");
     } finally {
-      setDispoLoading(false);
+      setStatsLoading(false);
     }
   };
-
-  useEffect(() => {
-    loadStats();
-    loadInventario();
-    loadPrestadores();
-    loadReporteVentas();
-    loadAuditoria();
-    loadConfig();
-    loadPredicciones();
-    loadProfile();
-    loadAdmins();
-    loadActiveAdmins();
-    loadAvailability();
-  }, []);
 
   const loadPrestadores = async () => {
     try {
@@ -341,11 +831,6 @@ function AdminDashboard() {
     }
   };
 
-  const handleFiltrarVentas = (e) => {
-    e.preventDefault();
-    loadReporteVentas(filtroVentas.fechaInicio, filtroVentas.fechaFin);
-  };
-
   const loadAuditoria = async () => {
     try {
       setAuditoriaLoading(true);
@@ -372,7 +857,6 @@ function AdminDashboard() {
     try {
       setInventarioListaLoading(true);
       const listData = await getInventario();
-      // Si la respuesta es directamente un arreglo, lo asignamos. Si viene envuelto en .data y .data es un arreglo, lo usamos.
       const arrayData = Array.isArray(listData)
         ? listData
         : Array.isArray(listData?.data)
@@ -383,22 +867,6 @@ function AdminDashboard() {
       setInventarioListaError("No se pudo cargar la lista de inventario");
     } finally {
       setInventarioListaLoading(false);
-    }
-  };
-
-  const loadStats = async () => {
-    try {
-      setStatsLoading(true);
-      const [statsData, reservasHoyData] = await Promise.all([
-        getDashboardStats(),
-        getReservasHoy(),
-      ]);
-      setStats(statsData.data || statsData);
-      setReservasHoy(reservasHoyData.data || reservasHoyData);
-    } catch {
-      setStatsError("No se pudieron cargar las estadísticas");
-    } finally {
-      setStatsLoading(false);
     }
   };
 
@@ -456,32 +924,36 @@ function AdminDashboard() {
     }
   };
 
-  const handleSearchAdmins = async (e) => {
-    e.preventDefault();
-    try {
-      setActiveAdminsLoading(true);
-      const data = await searchAdmins(searchAdminQuery);
-      setActiveAdmins(data);
-    } catch {
-      setActiveAdminsError("Error al buscar administradores");
-    } finally {
-      setActiveAdminsLoading(false);
-    }
-  };
-
   const loadProfile = async () => {
     try {
       const localUserStr = localStorage.getItem("user");
-      if (localUserStr) {
-        setProfile(JSON.parse(localUserStr));
-      }
+      if (localUserStr) setProfile(JSON.parse(localUserStr));
       const data = await getProfile();
-      if (data && (data.data || data.user || data.id)) {
+      if (data && (data.data || data.user || data.id))
         setProfile(data.data || data.user || data);
-      }
     } catch {
       /* silent */
     }
+  };
+
+  useEffect(() => {
+    loadStats();
+    loadInventario();
+    loadPrestadores();
+    loadReporteVentas();
+    loadAuditoria();
+    loadConfig();
+    loadPredicciones();
+    loadProfile();
+    loadAdmins();
+    loadActiveAdmins();
+    loadAvailability();
+  }, []);
+
+  /* ── Handlers ── */
+  const handleFiltrarVentas = (e) => {
+    e.preventDefault();
+    loadReporteVentas(filtroVentas.fechaInicio, filtroVentas.fechaFin);
   };
 
   const handleConfigChange = (e) => {
@@ -510,12 +982,6 @@ function AdminDashboard() {
     } finally {
       setConfigLoading(false);
     }
-  };
-
-  const handleFormChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({ ...formData, [name]: type === "checkbox" ? checked : value });
-    setFormError("");
   };
 
   const handleCreatePrediccion = async (e) => {
@@ -565,20 +1031,12 @@ function AdminDashboard() {
       );
       return;
     }
-
     try {
       setAdminFormLoading(true);
-
-      const payload = {
-        ...adminFormData,
-        usuarioId: profile.id,
-      };
-
       const { createAdmin } = await import("../services/adminService");
-      await createAdmin(payload);
+      await createAdmin({ ...adminFormData, usuarioId: profile.id });
       await loadAdmins();
       setShowAdminForm(false);
-      // Reset only standard form data, keep defaults
       setAdminFormData({
         usuarioId: "",
         nivelAcceso: "SuperAdmin",
@@ -599,24 +1057,20 @@ function AdminDashboard() {
       )
     )
       return;
-
     try {
       await deleteAdmin(id);
-      loadAdmins(); // Recargar la lista después de eliminar
-      loadActiveAdmins(); // Recargar la lista de activos
+      loadAdmins();
+      loadActiveAdmins();
     } catch {
       alert("Error al intentar eliminar el administrador.");
     }
   };
 
-  // ── Handlers Inventario ──
   const handleCreateInventario = async (e) => {
     e.preventDefault();
     setInventarioFormError("");
     setInventarioFormLoading(true);
-
     try {
-      // Convertir valores numéricos obligatorios
       const payload = {
         ...inventarioFormData,
         categoria: parseInt(inventarioFormData.categoria, 10),
@@ -625,12 +1079,10 @@ function AdminDashboard() {
         cantidadMaxima: parseInt(inventarioFormData.cantidadMaxima, 10),
         precioCosto: parseFloat(inventarioFormData.precioCosto),
       };
-      // Ajustar fechas vacías (api las requiere válidas o nulas)
       if (!payload.fechaVencimiento) delete payload.fechaVencimiento;
-
       await createInventario(payload);
       setShowInventarioForm(false);
-      loadInventario(); // Recargar resumen y lista
+      loadInventario();
       setInventarioFormData({
         nombre: "",
         descripcion: "",
@@ -652,6 +1104,129 @@ function AdminDashboard() {
     }
   };
 
+  const handleCreateAvailability = async (e) => {
+    e.preventDefault();
+    setDispoLoading(true);
+    setDispoError("");
+    setDispoSuccess("");
+    if (!dispoFormData.date) {
+      setDispoError("Selecciona una fecha.");
+      setDispoLoading(false);
+      return;
+    }
+    if (!dispoFormData.startTime) {
+      setDispoError("Selecciona una hora de inicio.");
+      setDispoLoading(false);
+      return;
+    }
+    if (!dispoFormData.endTime) {
+      setDispoError("Selecciona una hora de cierre.");
+      setDispoLoading(false);
+      return;
+    }
+    if (dispoFormData.endTime <= dispoFormData.startTime) {
+      setDispoError("La hora de cierre debe ser posterior a la de inicio.");
+      setDispoLoading(false);
+      return;
+    }
+    try {
+      const payload = {
+        date: dispoFormData.date,
+        timeSlots: [
+          {
+            startTime: dispoFormData.startTime,
+            endTime: dispoFormData.endTime,
+          },
+        ],
+        createdBy: profile?.email || profile?.userName || "Admin",
+      };
+      await createAvailability(payload);
+      setDispoSuccess("Fecha de reserva agregada exitosamente.");
+      setShowDispoForm(false);
+      setDispoFormData({ date: "", startTime: "", endTime: "" });
+      loadAvailability();
+      setTimeout(() => setDispoSuccess(""), 3000);
+    } catch (err) {
+      setDispoError(
+        err.message || "Error al contactar a la API de Disponibilidad",
+      );
+    } finally {
+      setDispoLoading(false);
+    }
+  };
+
+  const handleAIPrediction = async () => {
+    if (!aiSelectedProducts || aiSelectedProducts.length === 0) {
+      setAiError("Por favor seleccione al menos un producto a analizar.");
+      return;
+    }
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const productosPayload = [];
+      for (const prodName of aiSelectedProducts) {
+        const productoObj = inventarioLista.find((p) => p.nombre === prodName);
+        if (!productoObj) continue;
+        try {
+          const historialReal = await getProductoHistorial(productoObj.id);
+          if (historialReal && historialReal.length >= 2)
+            productosPayload.push({
+              producto: prodName,
+              historial: historialReal,
+            });
+          else
+            console.warn(
+              `El producto ${prodName} no tiene historial suficiente.`,
+            );
+        } catch (e) {
+          console.error(`No se pudo obtener el historial de ${prodName}`, e);
+        }
+      }
+      if (productosPayload.length === 0)
+        throw new Error(
+          "Ninguno de los productos seleccionados tiene suficientes datos históricos.",
+        );
+      const payload = {
+        meses_a_predecir: Number(aiMeses),
+        productos: productosPayload,
+      };
+      const currentToken = localStorage.getItem("token") || "";
+      const res = await fetch(
+        "https://sigidai-modelmicroservice-production.up.railway.app/predict",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${currentToken}`,
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (!res.ok) throw new Error("Falló la conexión con el motor de IA");
+      const data = await res.json();
+      setAiResults(data.resultados || []);
+    } catch (err) {
+      setAiError(
+        err.message || "No se pudo generar la predicción. Intente más tarde.",
+      );
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleSearchAdmins = async (e) => {
+    e.preventDefault();
+    try {
+      setActiveAdminsLoading(true);
+      const data = await searchAdmins(searchAdminQuery);
+      setActiveAdmins(data);
+    } catch {
+      setActiveAdminsError("Error al buscar administradores");
+    } finally {
+      setActiveAdminsLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -659,13 +1234,29 @@ function AdminDashboard() {
     navigate("/login");
   };
 
+  const todayISO = new Date().toISOString().split("T")[0];
   const activeItem = MENU_ITEMS.find((m) => m.id === activeSection);
 
+  /* ─── Global calendar animation keyframes injected once ─── */
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes calFadeIn {
+        from { opacity: 0; transform: translateY(-6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+
+  /* ════════════════════════════════════════════════════════
+     RENDER
+  ════════════════════════════════════════════════════════ */
   return (
     <div className={`adm-layout ${sidebarCollapsed ? "collapsed" : ""}`}>
       {/* ══════════ SIDEBAR ══════════ */}
       <aside className="adm-sidebar">
-        {/* Brand header */}
         <div className="adm-brand">
           {!sidebarCollapsed && (
             <div className="adm-brand-text">
@@ -684,8 +1275,6 @@ function AdminDashboard() {
             {sidebarCollapsed ? "›" : "‹"}
           </button>
         </div>
-
-        {/* Navigation */}
         <nav className="adm-nav">
           {!sidebarCollapsed && <p className="adm-nav-label">MÓDULOS</p>}
           {MENU_ITEMS.map((item) => (
@@ -705,8 +1294,6 @@ function AdminDashboard() {
             </button>
           ))}
         </nav>
-
-        {/* Cerrar sesión - bottom */}
         <button
           className="adm-logout-btn"
           onClick={handleLogout}
@@ -719,13 +1306,10 @@ function AdminDashboard() {
 
       {/* ══════════ MAIN ══════════ */}
       <div className="adm-main">
-        {/* Top bar */}
         <header className="adm-topbar">
           <div className="adm-topbar-title">
             <h1>{activeItem?.label}</h1>
           </div>
-
-          {/* Right: user info + avatar */}
           <div className="adm-topbar-user">
             {profile ? (
               <>
@@ -748,9 +1332,10 @@ function AdminDashboard() {
           </div>
         </header>
 
-        {/* Content */}
         <main className="adm-content">
-          {/* ── Estadísticas ── */}
+          {/* ══════════════════════════════════════════
+              ESTADÍSTICAS
+          ══════════════════════════════════════════ */}
           {activeSection === "estadisticas" && (
             <div
               className="panel-card"
@@ -775,7 +1360,6 @@ function AdminDashboard() {
                   <p>Resumen general del restaurante</p>
                 </div>
               </div>
-
               {statsError && <div className="error-message">{statsError}</div>}
               {statsLoading ? (
                 <div className="loading-state">Cargando estadísticas...</div>
@@ -791,125 +1375,63 @@ function AdminDashboard() {
                         marginBottom: "24px",
                       }}
                     >
-                      <div
-                        style={{
-                          background: "#fff",
-                          padding: "24px",
-                          borderRadius: "12px",
-                          boxShadow: "0 4px 6px rgba(0,0,0,0.02)",
-                          border: "1px solid #f3f4f6",
-                        }}
-                      >
-                        <h3
+                      {[
+                        {
+                          label: "Total Reservas",
+                          value: stats.totalReservas,
+                          color: "#111827",
+                        },
+                        {
+                          label: "Reservas Hoy",
+                          value: stats.reservasHoy,
+                          color: "#059669",
+                        },
+                        {
+                          label: "Total Empleados",
+                          value: stats.totalEmpleados,
+                          color: "#3b82f6",
+                        },
+                        {
+                          label: "Prods. Bajo Stock",
+                          value: stats.productosConBajoStock,
+                          color:
+                            stats.productosConBajoStock > 0
+                              ? "#dc2626"
+                              : "#6b7280",
+                        },
+                      ].map(({ label, value, color }) => (
+                        <div
+                          key={label}
                           style={{
-                            fontSize: "14px",
-                            color: "#6b7280",
-                            marginBottom: "8px",
+                            background: "#fff",
+                            padding: "24px",
+                            borderRadius: "12px",
+                            boxShadow: "0 4px 6px rgba(0,0,0,0.02)",
+                            border: "1px solid #f3f4f6",
                           }}
                         >
-                          Total Reservas
-                        </h3>
-                        <p
-                          style={{
-                            fontSize: "32px",
-                            fontWeight: "700",
-                            color: "#111827",
-                          }}
-                        >
-                          {stats.totalReservas}
-                        </p>
-                      </div>
-                      <div
-                        style={{
-                          background: "#fff",
-                          padding: "24px",
-                          borderRadius: "12px",
-                          boxShadow: "0 4px 6px rgba(0,0,0,0.02)",
-                          border: "1px solid #f3f4f6",
-                        }}
-                      >
-                        <h3
-                          style={{
-                            fontSize: "14px",
-                            color: "#6b7280",
-                            marginBottom: "8px",
-                          }}
-                        >
-                          Reservas Hoy
-                        </h3>
-                        <p
-                          style={{
-                            fontSize: "32px",
-                            fontWeight: "700",
-                            color: "#059669",
-                          }}
-                        >
-                          {stats.reservasHoy}
-                        </p>
-                      </div>
-                      <div
-                        style={{
-                          background: "#fff",
-                          padding: "24px",
-                          borderRadius: "12px",
-                          boxShadow: "0 4px 6px rgba(0,0,0,0.02)",
-                          border: "1px solid #f3f4f6",
-                        }}
-                      >
-                        <h3
-                          style={{
-                            fontSize: "14px",
-                            color: "#6b7280",
-                            marginBottom: "8px",
-                          }}
-                        >
-                          Total Empleados
-                        </h3>
-                        <p
-                          style={{
-                            fontSize: "32px",
-                            fontWeight: "700",
-                            color: "#3b82f6",
-                          }}
-                        >
-                          {stats.totalEmpleados}
-                        </p>
-                      </div>
-                      <div
-                        style={{
-                          background: "#fff",
-                          padding: "24px",
-                          borderRadius: "12px",
-                          boxShadow: "0 4px 6px rgba(0,0,0,0.02)",
-                          border: "1px solid #f3f4f6",
-                        }}
-                      >
-                        <h3
-                          style={{
-                            fontSize: "14px",
-                            color: "#6b7280",
-                            marginBottom: "8px",
-                          }}
-                        >
-                          Prods. Bajo Stock
-                        </h3>
-                        <p
-                          style={{
-                            fontSize: "32px",
-                            fontWeight: "700",
-                            color:
-                              stats.productosConBajoStock > 0
-                                ? "#dc2626"
-                                : "#6b7280",
-                          }}
-                        >
-                          {stats.productosConBajoStock}
-                        </p>
-                      </div>
+                          <h3
+                            style={{
+                              fontSize: "14px",
+                              color: "#6b7280",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            {label}
+                          </h3>
+                          <p
+                            style={{
+                              fontSize: "32px",
+                              fontWeight: "700",
+                              color,
+                            }}
+                          >
+                            {value}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   )}
-
-                  {/* Segunda fila de cards para Reservas Hoy (Más detalle) */}
                   {reservasHoy && (
                     <>
                       <h3
@@ -997,7 +1519,9 @@ function AdminDashboard() {
             </div>
           )}
 
-          {/* ── Inventario ── */}
+          {/* ══════════════════════════════════════════
+              INVENTARIO
+          ══════════════════════════════════════════ */}
           {activeSection === "inventario" && (
             <div
               className="panel-card"
@@ -1022,7 +1546,6 @@ function AdminDashboard() {
                   <p>Estado actual de los productos e insumos</p>
                 </div>
               </div>
-
               {inventarioError && (
                 <div className="error-message">{inventarioError}</div>
               )}
@@ -1037,19 +1560,12 @@ function AdminDashboard() {
                   }}
                 >
                   {Object.entries(inventario).map(([key, value]) => {
-                    // Ignore metadata like 'fecha' or generic strings if not needed as KPI
                     if (key === "fecha") return null;
-
-                    // CRITICAL FIX: skip over arrays/objects (like 'categorias') since React can't render objects directly
                     if (typeof value === "object" && value !== null)
                       return null;
-
-                    // Format key from camelCase to Title Case (e.g. totalProductos -> Total Productos)
                     const label = key
                       .replace(/([A-Z])/g, " $1")
                       .replace(/^./, (str) => str.toUpperCase());
-
-                    // If it's a number and has 'valor' or 'costo', format as currency
                     const isCurrency =
                       key.toLowerCase().includes("valor") ||
                       key.toLowerCase().includes("costo") ||
@@ -1059,7 +1575,6 @@ function AdminDashboard() {
                       isCurrency && typeof value === "number"
                         ? `$${value.toLocaleString()}`
                         : value;
-
                     return (
                       <div key={key} className="kpi-card">
                         <h3
@@ -1090,7 +1605,7 @@ function AdminDashboard() {
                 </div>
               ) : null}
 
-              {/* Inventario List Table */}
+              {/* Listado */}
               <div
                 className="panel-card"
                 style={{ padding: "0", overflow: "hidden", marginTop: "24px" }}
@@ -1235,7 +1750,7 @@ function AdminDashboard() {
                 )}
               </div>
 
-              {/* Inventario Modal */}
+              {/* ── Inventario Modal ── */}
               {showInventarioForm && (
                 <div
                   className="modal-backdrop"
@@ -1268,7 +1783,6 @@ function AdminDashboard() {
                         ✕
                       </button>
                     </div>
-
                     {inventarioFormError && (
                       <div
                         className="error-message"
@@ -1277,13 +1791,11 @@ function AdminDashboard() {
                         {inventarioFormError}
                       </div>
                     )}
-
                     <form
                       onSubmit={handleCreateInventario}
                       className="config-form"
                       style={{ padding: "0 28px 24px" }}
                     >
-                      {/* SECCIÓN 1 */}
                       <div className="form-section">
                         <div className="section-title">
                           <span>📋</span> Información General
@@ -1344,7 +1856,6 @@ function AdminDashboard() {
                         </div>
                       </div>
 
-                      {/* SECCIÓN 2 */}
                       <div className="form-section">
                         <div className="section-title">
                           <span>📦</span> Control de Inventario
@@ -1428,7 +1939,6 @@ function AdminDashboard() {
                         </div>
                       </div>
 
-                      {/* SECCIÓN 3 */}
                       <div
                         className="form-section"
                         style={{ marginBottom: "16px" }}
@@ -1469,17 +1979,19 @@ function AdminDashboard() {
                             />
                           </div>
                         </div>
+                        {/* ✅ CALENDAR for expiry date */}
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                          <label>Fecha Venc. (Opcional)</label>
-                          <input
-                            type="date"
+                          <CalendarPicker
+                            label="Fecha de Vencimiento (Opcional)"
                             value={inventarioFormData.fechaVencimiento}
-                            onChange={(e) =>
+                            onChange={(val) =>
                               setInventarioFormData({
                                 ...inventarioFormData,
-                                fechaVencimiento: e.target.value,
+                                fechaVencimiento: val,
                               })
                             }
+                            minDate={todayISO}
+                            placeholder="Sin fecha de vencimiento"
                           />
                         </div>
                       </div>
@@ -1516,7 +2028,7 @@ function AdminDashboard() {
                 </div>
               )}
 
-              {/* ── Floating AI Button ── */}
+              {/* AI Floating Button */}
               <button
                 className="ai-floating-btn"
                 onClick={() => setShowAIModal(true)}
@@ -1525,7 +2037,7 @@ function AdminDashboard() {
                 ✨ <span>Predicción IA</span>
               </button>
 
-              {/* ── AI PREDICTION MODAL ── */}
+              {/* AI PREDICTION MODAL */}
               {showAIModal && (
                 <div
                   className="modal-backdrop"
@@ -1551,7 +2063,6 @@ function AdminDashboard() {
                         ✕
                       </button>
                     </div>
-
                     <div style={{ padding: "20px 28px" }}>
                       <div
                         className="form-row-2"
@@ -1564,12 +2075,11 @@ function AdminDashboard() {
                             defaultValue=""
                             onChange={(e) => {
                               const val = e.target.value;
-                              if (val && !aiSelectedProducts.includes(val)) {
+                              if (val && !aiSelectedProducts.includes(val))
                                 setAiSelectedProducts([
                                   ...aiSelectedProducts,
                                   val,
                                 ]);
-                              }
                               e.target.value = "";
                             }}
                           >
@@ -1592,7 +2102,6 @@ function AdminDashboard() {
                           />
                         </div>
                       </div>
-
                       {aiSelectedProducts.length > 0 && (
                         <div
                           style={{
@@ -1634,8 +2143,6 @@ function AdminDashboard() {
                                   cursor: "pointer",
                                   padding: "0",
                                   fontSize: "16px",
-                                  lineHeight: "1",
-                                  display: "flex",
                                 }}
                               >
                                 ×
@@ -1644,7 +2151,6 @@ function AdminDashboard() {
                           ))}
                         </div>
                       )}
-
                       <button
                         onClick={handleAIPrediction}
                         className="submit-button"
@@ -1659,7 +2165,6 @@ function AdminDashboard() {
                           ? "Calculando predicción..."
                           : "🔮 Generar Predicción ahora"}
                       </button>
-
                       {aiError && (
                         <div
                           className="error-message"
@@ -1668,7 +2173,6 @@ function AdminDashboard() {
                           {aiError}
                         </div>
                       )}
-
                       {aiResults && !aiLoading && (
                         <div
                           className="ai-results-list"
@@ -1736,7 +2240,9 @@ function AdminDashboard() {
             </div>
           )}
 
-          {/* ── Auditoría ── */}
+          {/* ══════════════════════════════════════════
+              AUDITORÍA
+          ══════════════════════════════════════════ */}
           {activeSection === "auditoria" && (
             <div
               className="panel-card"
@@ -1777,11 +2283,9 @@ function AdminDashboard() {
                   </button>
                 </div>
               </div>
-
               {auditoriaError && (
                 <div className="error-message">{auditoriaError}</div>
               )}
-
               <div
                 className="panel-card"
                 style={{ padding: "0", overflow: "hidden" }}
@@ -1808,10 +2312,6 @@ function AdminDashboard() {
                       {auditoriaActividades.length > 0 ? (
                         auditoriaActividades.map((actividad, idx) => {
                           const fecha = new Date(actividad.fecha);
-                          const fechaStr =
-                            fecha.toLocaleDateString() +
-                            " " +
-                            fecha.toLocaleTimeString();
                           return (
                             <tr key={idx}>
                               <td
@@ -1821,7 +2321,8 @@ function AdminDashboard() {
                                   fontSize: "14px",
                                 }}
                               >
-                                {fechaStr}
+                                {fecha.toLocaleDateString()}{" "}
+                                {fecha.toLocaleTimeString()}
                               </td>
                               <td
                                 style={{
@@ -1870,7 +2371,9 @@ function AdminDashboard() {
             </div>
           )}
 
-          {/* ── Reporte Ventas ── */}
+          {/* ══════════════════════════════════════════
+              REPORTE VENTAS — con DateRangePicker
+          ══════════════════════════════════════════ */}
           {activeSection === "reportes_ventas" && (
             <div
               className="panel-card"
@@ -1890,67 +2393,58 @@ function AdminDashboard() {
                   boxShadow: "0 4px 6px rgba(0,0,0,0.02)",
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    width: "100%",
-                    flexWrap: "wrap",
-                    gap: "20px",
-                  }}
-                >
-                  <div>
+                <div style={{ width: "100%" }}>
+                  <div style={{ marginBottom: "20px" }}>
                     <h2>Reporte de Ventas</h2>
                     <p>Consulta las ventas y reservas en un rango de fechas</p>
                   </div>
-                  <form
-                    onSubmit={handleFiltrarVentas}
-                    style={{
-                      display: "flex",
-                      gap: "15px",
-                      alignItems: "flex-end",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label>Fecha Inicio</label>
-                      <input
-                        type="date"
-                        value={filtroVentas.fechaInicio}
-                        onChange={(e) =>
-                          setFiltroVentas({
-                            ...filtroVentas,
-                            fechaInicio: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label>Fecha Fin</label>
-                      <input
-                        type="date"
-                        value={filtroVentas.fechaFin}
-                        onChange={(e) =>
-                          setFiltroVentas({
-                            ...filtroVentas,
-                            fechaFin: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      className="action-btn primary"
+
+                  {/* ✅ CALENDAR RANGE PICKER for sales filter */}
+                  <form onSubmit={handleFiltrarVentas}>
+                    <DateRangePicker
+                      startDate={filtroVentas.fechaInicio}
+                      endDate={filtroVentas.fechaFin}
+                      onStartChange={(val) =>
+                        setFiltroVentas({ ...filtroVentas, fechaInicio: val })
+                      }
+                      onEndChange={(val) =>
+                        setFiltroVentas({ ...filtroVentas, fechaFin: val })
+                      }
+                    />
+                    <div
                       style={{
-                        height: "44px",
-                        padding: "0 24px",
-                        marginBottom: "22px",
+                        marginTop: "16px",
+                        display: "flex",
+                        gap: "10px",
                       }}
-                      disabled={reporteVentasLoading}
                     >
-                      Filtrar
-                    </button>
+                      <button
+                        type="submit"
+                        className="action-btn primary"
+                        style={{ padding: "10px 28px" }}
+                        disabled={reporteVentasLoading}
+                      >
+                        {reporteVentasLoading
+                          ? "Cargando..."
+                          : "🔍 Filtrar ventas"}
+                      </button>
+                      {(filtroVentas.fechaInicio || filtroVentas.fechaFin) && (
+                        <button
+                          type="button"
+                          style={{
+                            ...styles.calTodayBtn,
+                            padding: "10px 20px",
+                            fontSize: "13px",
+                          }}
+                          onClick={() => {
+                            setFiltroVentas({ fechaInicio: "", fechaFin: "" });
+                            loadReporteVentas("", "");
+                          }}
+                        >
+                          Limpiar filtro
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
               </div>
@@ -1973,93 +2467,49 @@ function AdminDashboard() {
                       marginBottom: "24px",
                     }}
                   >
-                    <div
-                      style={{
-                        background: "#fff",
-                        padding: "24px",
-                        borderRadius: "12px",
-                        boxShadow: "0 4px 6px rgba(0,0,0,0.02)",
-                        border: "1px solid #f3f4f6",
-                      }}
-                    >
-                      <h3
+                    {[
+                      {
+                        label: "Total Ventas",
+                        value: `$${(reporteVentas.totalVentas || 0).toLocaleString()}`,
+                        color: "#10b981",
+                      },
+                      {
+                        label: "Total Reservas",
+                        value: reporteVentas.totalReservas || 0,
+                        color: "#3b82f6",
+                      },
+                      {
+                        label: "Promedio Venta Diaria",
+                        value: `$${(reporteVentas.promedioVentaDiaria || 0).toLocaleString()}`,
+                        color: "#8b5cf6",
+                      },
+                    ].map(({ label, value, color }) => (
+                      <div
+                        key={label}
                         style={{
-                          fontSize: "14px",
-                          color: "#6b7280",
-                          marginBottom: "8px",
+                          background: "#fff",
+                          padding: "24px",
+                          borderRadius: "12px",
+                          boxShadow: "0 4px 6px rgba(0,0,0,0.02)",
+                          border: "1px solid #f3f4f6",
                         }}
                       >
-                        Total Ventas
-                      </h3>
-                      <p
-                        style={{
-                          fontSize: "32px",
-                          fontWeight: "700",
-                          color: "#10b981",
-                        }}
-                      >
-                        ${(reporteVentas.totalVentas || 0).toLocaleString()}
-                      </p>
-                    </div>
-                    <div
-                      style={{
-                        background: "#fff",
-                        padding: "24px",
-                        borderRadius: "12px",
-                        boxShadow: "0 4px 6px rgba(0,0,0,0.02)",
-                        border: "1px solid #f3f4f6",
-                      }}
-                    >
-                      <h3
-                        style={{
-                          fontSize: "14px",
-                          color: "#6b7280",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Total Reservas
-                      </h3>
-                      <p
-                        style={{
-                          fontSize: "32px",
-                          fontWeight: "700",
-                          color: "#3b82f6",
-                        }}
-                      >
-                        {reporteVentas.totalReservas || 0}
-                      </p>
-                    </div>
-                    <div
-                      style={{
-                        background: "#fff",
-                        padding: "24px",
-                        borderRadius: "12px",
-                        boxShadow: "0 4px 6px rgba(0,0,0,0.02)",
-                        border: "1px solid #f3f4f6",
-                      }}
-                    >
-                      <h3
-                        style={{
-                          fontSize: "14px",
-                          color: "#6b7280",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        Promedio Venta Diaria
-                      </h3>
-                      <p
-                        style={{
-                          fontSize: "32px",
-                          fontWeight: "700",
-                          color: "#8b5cf6",
-                        }}
-                      >
-                        $
-                        {(
-                          reporteVentas.promedioVentaDiaria || 0
-                        ).toLocaleString()}
-                      </p>
-                    </div>
+                        <h3
+                          style={{
+                            fontSize: "14px",
+                            color: "#6b7280",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          {label}
+                        </h3>
+                        <p
+                          style={{ fontSize: "32px", fontWeight: "700", color }}
+                        >
+                          {value}
+                        </p>
+                      </div>
+                    ))}
                   </div>
 
                   {reporteVentas.ventasPorDia &&
@@ -2116,54 +2566,51 @@ function AdminDashboard() {
                               </tr>
                             </thead>
                             <tbody>
-                              {reporteVentas.ventasPorDia.map((venta, idx) => {
-                                const fechaFormateada = new Date(
-                                  venta.fecha,
-                                ).toLocaleDateString("es-ES", {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                });
-                                return (
-                                  <tr key={idx}>
-                                    <td
-                                      style={{
-                                        padding: "16px 24px",
-                                        fontWeight: "500",
-                                      }}
-                                    >
-                                      {fechaFormateada}
-                                    </td>
-                                    <td
-                                      style={{
-                                        textAlign: "right",
-                                        padding: "16px 24px",
-                                      }}
-                                    >
-                                      {venta.cantidadReservas || 0}
-                                    </td>
-                                    <td
-                                      style={{
-                                        textAlign: "right",
-                                        padding: "16px 24px",
-                                        fontWeight: "600",
-                                        color: "#10b981",
-                                      }}
-                                    >
-                                      $
-                                      {(
-                                        venta.montoRecaudado || 0
-                                      ).toLocaleString()}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
+                              {reporteVentas.ventasPorDia.map((venta, idx) => (
+                                <tr key={idx}>
+                                  <td
+                                    style={{
+                                      padding: "16px 24px",
+                                      fontWeight: "500",
+                                    }}
+                                  >
+                                    {new Date(venta.fecha).toLocaleDateString(
+                                      "es-ES",
+                                      {
+                                        year: "numeric",
+                                        month: "short",
+                                        day: "numeric",
+                                      },
+                                    )}
+                                  </td>
+                                  <td
+                                    style={{
+                                      textAlign: "right",
+                                      padding: "16px 24px",
+                                    }}
+                                  >
+                                    {venta.cantidadReservas || 0}
+                                  </td>
+                                  <td
+                                    style={{
+                                      textAlign: "right",
+                                      padding: "16px 24px",
+                                      fontWeight: "600",
+                                      color: "#10b981",
+                                    }}
+                                  >
+                                    $
+                                    {(
+                                      venta.montoRecaudado || 0
+                                    ).toLocaleString()}
+                                  </td>
+                                </tr>
+                              ))}
                             </tbody>
                           </table>
                         </div>
                       </div>
                     )}
-
                   {reporteVentas.ventasPorDia &&
                     reporteVentas.ventasPorDia.length === 0 && (
                       <div className="empty-state">
@@ -2178,7 +2625,9 @@ function AdminDashboard() {
             </div>
           )}
 
-          {/* ── Prestadores ── */}
+          {/* ══════════════════════════════════════════
+              PRESTADORES
+          ══════════════════════════════════════════ */}
           {activeSection === "prestadores" && (
             <div
               className="panel-card"
@@ -2203,7 +2652,6 @@ function AdminDashboard() {
                   <p>Resumen de empleados presentes y turnos asignados</p>
                 </div>
               </div>
-
               {prestadoresError && (
                 <div className="error-message">{prestadoresError}</div>
               )}
@@ -2249,7 +2697,6 @@ function AdminDashboard() {
                       </p>
                     </div>
                   </div>
-
                   {prestadores.turnosPorDepartamento &&
                     prestadores.turnosPorDepartamento.length > 0 && (
                       <div
@@ -2328,7 +2775,6 @@ function AdminDashboard() {
                         </div>
                       </div>
                     )}
-
                   {prestadores.turnosPorDepartamento &&
                     prestadores.turnosPorDepartamento.length === 0 && (
                       <div className="empty-state">
@@ -2340,10 +2786,11 @@ function AdminDashboard() {
             </div>
           )}
 
-          {/* ── Configuración ── */}
+          {/* ══════════════════════════════════════════
+              CONFIGURACIÓN
+          ══════════════════════════════════════════ */}
           {activeSection === "configuracion" && (
             <>
-              {/* Results card */}
               <div className="panel-card">
                 <div className="panel-card-header">
                   <div>
@@ -2357,14 +2804,12 @@ function AdminDashboard() {
                     {showConfigForm ? "✕ Cancelar" : "✏️ Editar"}
                   </button>
                 </div>
-
                 {configError && (
                   <div className="error-message">{configError}</div>
                 )}
                 {configSuccess && (
                   <div className="success-message">{configSuccess}</div>
                 )}
-
                 {configLoading && !config.capacidadMaxima ? (
                   <div className="loading-state">Cargando configuración...</div>
                 ) : (
@@ -2395,7 +2840,6 @@ function AdminDashboard() {
                 )}
               </div>
 
-              {/* ── MODAL de edición ── */}
               {showConfigForm && (
                 <div
                   className="modal-backdrop"
@@ -2417,7 +2861,6 @@ function AdminDashboard() {
                         ✕
                       </button>
                     </div>
-
                     <form onSubmit={handleConfigSubmit} className="config-form">
                       <div className="form-row-3">
                         <div className="form-group">
@@ -2434,33 +2877,78 @@ function AdminDashboard() {
                             required
                           />
                         </div>
+                        {/* ✅ TIME PICKERS for open/close hours */}
                         <div className="form-group">
-                          <label htmlFor="horaApertura">Hora de apertura</label>
-                          <input
-                            type="number"
-                            id="horaApertura"
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: "6px",
+                              fontSize: "13px",
+                              fontWeight: "600",
+                              color: "#374151",
+                            }}
+                          >
+                            Hora de Apertura
+                          </label>
+                          <select
                             name="horaApertura"
                             value={config.horaApertura}
                             onChange={handleConfigChange}
-                            min="0"
-                            max="23"
+                            className="modern-select"
                             required
-                          />
-                          <span className="input-hint">Formato 24h (0–23)</span>
+                          >
+                            <option value="">Seleccionar...</option>
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <option key={i} value={i}>
+                                {i === 0
+                                  ? "12:00 AM"
+                                  : i < 12
+                                    ? `${i}:00 AM`
+                                    : i === 12
+                                      ? "12:00 PM"
+                                      : `${i - 12}:00 PM`}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="input-hint">
+                            Hora de apertura del restaurante
+                          </span>
                         </div>
                         <div className="form-group">
-                          <label htmlFor="horaCierre">Hora de cierre</label>
-                          <input
-                            type="number"
-                            id="horaCierre"
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: "6px",
+                              fontSize: "13px",
+                              fontWeight: "600",
+                              color: "#374151",
+                            }}
+                          >
+                            Hora de Cierre
+                          </label>
+                          <select
                             name="horaCierre"
                             value={config.horaCierre}
                             onChange={handleConfigChange}
-                            min="0"
-                            max="23"
+                            className="modern-select"
                             required
-                          />
-                          <span className="input-hint">Formato 24h (0–23)</span>
+                          >
+                            <option value="">Seleccionar...</option>
+                            {Array.from({ length: 24 }, (_, i) => (
+                              <option key={i} value={i}>
+                                {i === 0
+                                  ? "12:00 AM"
+                                  : i < 12
+                                    ? `${i}:00 AM`
+                                    : i === 12
+                                      ? "12:00 PM"
+                                      : `${i - 12}:00 PM`}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="input-hint">
+                            Hora de cierre del restaurante
+                          </span>
                         </div>
                       </div>
                       <div className="form-row">
@@ -2519,7 +3007,9 @@ function AdminDashboard() {
             </>
           )}
 
-          {/* ── Agregar Fecha Reserva (Disponibilidad) ── */}
+          {/* ══════════════════════════════════════════
+              DISPONIBILIDAD — con CalendarPicker y TimePicker
+          ══════════════════════════════════════════ */}
           {activeSection === "disponibilidad" && (
             <div className="panel-card">
               <div className="panel-card-header">
@@ -2551,56 +3041,106 @@ function AdminDashboard() {
 
               {showDispoForm && (
                 <div className="inline-form" style={{ marginTop: "20px" }}>
-                  <h3 style={{ marginBottom: "16px" }}>Nueva Disponibilidad</h3>
+                  <h3
+                    style={{
+                      marginBottom: "20px",
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      color: "#111827",
+                    }}
+                  >
+                    📅 Nueva Disponibilidad
+                  </h3>
                   <form onSubmit={handleCreateAvailability}>
-                    <div className="form-row-3">
-                      <div className="form-group">
-                        <label>Fecha de Reserva *</label>
-                        <input
-                          type="date"
-                          value={dispoFormData.date}
-                          onChange={(e) =>
-                            setDispoFormData({
-                              ...dispoFormData,
-                              date: e.target.value,
-                            })
-                          }
-                          min={new Date().toISOString().split("T")[0]}
-                          required
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label>Hora de Inicio *</label>
-                        <input
-                          type="time"
-                          value={dispoFormData.startTime}
-                          onChange={(e) =>
-                            setDispoFormData({
-                              ...dispoFormData,
-                              startTime: e.target.value,
-                            })
-                          }
-                          required
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label>Hora de Cierre *</label>
-                        <input
-                          type="time"
-                          value={dispoFormData.endTime}
-                          onChange={(e) =>
-                            setDispoFormData({
-                              ...dispoFormData,
-                              endTime: e.target.value,
-                            })
-                          }
-                          required
-                        />
-                      </div>
+                    {/* ✅ FULL CALENDAR PICKER for date selection */}
+                    <div style={{ marginBottom: "24px" }}>
+                      <CalendarPicker
+                        label="Fecha de Reserva *"
+                        value={dispoFormData.date}
+                        onChange={(val) =>
+                          setDispoFormData({ ...dispoFormData, date: val })
+                        }
+                        minDate={todayISO}
+                        placeholder="Seleccionar día del calendario..."
+                      />
                     </div>
+
+                    {/* ✅ TIME PICKERS for start/end */}
+                    <div
+                      className="form-row-2"
+                      style={{ marginBottom: "20px", alignItems: "flex-start" }}
+                    >
+                      <TimePicker
+                        label="Hora de Apertura *"
+                        value={dispoFormData.startTime}
+                        onChange={(val) =>
+                          setDispoFormData({ ...dispoFormData, startTime: val })
+                        }
+                        placeholder="Seleccionar hora de inicio..."
+                      />
+                      <TimePicker
+                        label="Hora de Cierre *"
+                        value={dispoFormData.endTime}
+                        onChange={(val) =>
+                          setDispoFormData({ ...dispoFormData, endTime: val })
+                        }
+                        placeholder="Seleccionar hora de fin..."
+                      />
+                    </div>
+
+                    {/* Preview */}
+                    {dispoFormData.date &&
+                      dispoFormData.startTime &&
+                      dispoFormData.endTime && (
+                        <div
+                          style={{
+                            background: "#f0fdf4",
+                            border: "1px solid #bbf7d0",
+                            borderRadius: "10px",
+                            padding: "14px 18px",
+                            marginBottom: "20px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                          }}
+                        >
+                          <span style={{ fontSize: "20px" }}>✅</span>
+                          <div>
+                            <p
+                              style={{
+                                margin: 0,
+                                fontWeight: "700",
+                                color: "#15803d",
+                                fontSize: "14px",
+                              }}
+                            >
+                              Vista previa de la reserva
+                            </p>
+                            <p
+                              style={{
+                                margin: "2px 0 0",
+                                color: "#166534",
+                                fontSize: "13px",
+                              }}
+                            >
+                              {new Date(
+                                dispoFormData.date + "T00:00:00",
+                              ).toLocaleDateString("es-ES", {
+                                weekday: "long",
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                              })}{" "}
+                              · {dispoFormData.startTime} a{" "}
+                              {dispoFormData.endTime}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                     <div
                       className="modal-footer"
-                      style={{ border: "none", padding: 0, marginTop: "16px" }}
+                      style={{ border: "none", padding: 0, marginTop: "4px" }}
                     >
                       <button
                         type="submit"
@@ -2616,7 +3156,7 @@ function AdminDashboard() {
                 </div>
               )}
 
-              {/* Listado de Disponibilidad */}
+              {/* Listado */}
               <div style={{ marginTop: "24px" }}>
                 <h3
                   style={{
@@ -2654,7 +3194,15 @@ function AdminDashboard() {
                           <tr key={item.id || item.date || idx}>
                             <td>
                               <strong>
-                                {new Date(item.date).toLocaleDateString()}
+                                {new Date(item.date).toLocaleDateString(
+                                  "es-ES",
+                                  {
+                                    weekday: "long",
+                                    year: "numeric",
+                                    month: "long",
+                                    day: "numeric",
+                                  },
+                                )}
                               </strong>
                             </td>
                             <td>
@@ -2686,7 +3234,9 @@ function AdminDashboard() {
             </div>
           )}
 
-          {/* ── Períodos ── */}
+          {/* ══════════════════════════════════════════
+              PERÍODOS — con DateRangePicker
+          ══════════════════════════════════════════ */}
           {activeSection === "periodos" && (
             <div className="panel-card">
               <div className="panel-card-header">
@@ -2706,47 +3256,81 @@ function AdminDashboard() {
 
               {showForm && (
                 <div className="inline-form">
-                  <h3>Generar nuevo período</h3>
+                  <h3 style={{ marginBottom: "20px" }}>
+                    Generar nuevo período
+                  </h3>
                   {formError && (
                     <div className="error-message">{formError}</div>
                   )}
                   <form onSubmit={handleCreatePrediccion}>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label htmlFor="periodoInicio">Fecha inicio</label>
-                        <input
-                          type="date"
-                          id="periodoInicio"
-                          name="periodoInicio"
-                          value={formData.periodoInicio}
-                          onChange={handleFormChange}
-                          min={new Date().toISOString().split("T")[0]}
-                          required
-                        />
-                      </div>
-                      <div className="form-group">
-                        <label htmlFor="periodoFin">Fecha fin</label>
-                        <input
-                          type="date"
-                          id="periodoFin"
-                          name="periodoFin"
-                          value={formData.periodoFin}
-                          onChange={handleFormChange}
-                          min={
-                            formData.periodoInicio ||
-                            new Date().toISOString().split("T")[0]
-                          }
-                          required
-                        />
-                      </div>
+                    {/* ✅ CALENDAR RANGE PICKER for period selection */}
+                    <div style={{ marginBottom: "24px" }}>
+                      <DateRangePicker
+                        startDate={formData.periodoInicio}
+                        endDate={formData.periodoFin}
+                        onStartChange={(val) => {
+                          setFormData({ ...formData, periodoInicio: val });
+                          setFormError("");
+                        }}
+                        onEndChange={(val) => {
+                          setFormData({ ...formData, periodoFin: val });
+                          setFormError("");
+                        }}
+                        label="Rango del período *"
+                      />
                     </div>
+
+                    {/* Preview */}
+                    {formData.periodoInicio && formData.periodoFin && (
+                      <div
+                        style={{
+                          background: "#faf5ff",
+                          border: "1px solid #e9d5ff",
+                          borderRadius: "10px",
+                          padding: "12px 16px",
+                          marginBottom: "20px",
+                        }}
+                      >
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "13px",
+                            color: "#7e22ce",
+                            fontWeight: "600",
+                          }}
+                        >
+                          📆 Período:{" "}
+                          {new Date(
+                            formData.periodoInicio + "T00:00:00",
+                          ).toLocaleDateString("es-ES", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}{" "}
+                          →{" "}
+                          {new Date(
+                            formData.periodoFin + "T00:00:00",
+                          ).toLocaleDateString("es-ES", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+                    )}
+
                     <div className="checkbox-row">
                       <label className="checkbox-label">
                         <input
                           type="checkbox"
                           name="consideraFestivos"
                           checked={formData.consideraFestivos}
-                          onChange={handleFormChange}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              consideraFestivos: e.target.checked,
+                            })
+                          }
                         />
                         <span>Considerar festivos</span>
                       </label>
@@ -2755,7 +3339,12 @@ function AdminDashboard() {
                           type="checkbox"
                           name="consideraTendencias"
                           checked={formData.consideraTendencias}
-                          onChange={handleFormChange}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              consideraTendencias: e.target.checked,
+                            })
+                          }
                         />
                         <span>Considerar tendencias históricas</span>
                       </label>
@@ -2835,7 +3424,9 @@ function AdminDashboard() {
             </div>
           )}
 
-          {/* ── Administradores ── */}
+          {/* ══════════════════════════════════════════
+              ADMINISTRADORES
+          ══════════════════════════════════════════ */}
           {activeSection === "administradores" && (
             <div className="panel-card">
               <div className="panel-card-header">
@@ -2849,11 +3440,9 @@ function AdminDashboard() {
                   + Nuevo administrador
                 </button>
               </div>
-
               {adminsError && (
                 <div className="error-message">{adminsError}</div>
               )}
-
               {adminsLoading ? (
                 <div className="loading-state">Cargando administradores...</div>
               ) : admins.length === 0 ? (
@@ -2917,7 +3506,6 @@ function AdminDashboard() {
                 </div>
               )}
 
-              {/* ── MODAL de creación de admin ── */}
               {showAdminForm && (
                 <div
                   className="modal-backdrop"
@@ -2939,7 +3527,6 @@ function AdminDashboard() {
                         ✕
                       </button>
                     </div>
-
                     {adminFormError && (
                       <div
                         className="error-message"
@@ -2948,18 +3535,18 @@ function AdminDashboard() {
                         {adminFormError}
                       </div>
                     )}
-
                     <form onSubmit={handleCreateAdmin} className="config-form">
                       <div className="form-row">
                         <div
                           className="form-group"
                           style={{ gridColumn: "span 2" }}
                         >
-                          <label htmlFor="usuarioId">Usuario a promover</label>
+                          <label htmlFor="usuarioNombreDisplay">
+                            Usuario a promover
+                          </label>
                           <input
                             type="text"
                             id="usuarioNombreDisplay"
-                            name="usuarioNombreDisplay"
                             value={
                               profile
                                 ? `${profile.firstName || ""} ${profile.lastName || ""} (${profile.email || profile.userName || "Local"})`
@@ -2975,16 +3562,12 @@ function AdminDashboard() {
                           </span>
                         </div>
                       </div>
-
                       <div className="form-row">
                         <div className="form-group">
-                          <label htmlFor="nivelAcceso">Nivel de Acceso</label>
+                          <label>Nivel de Acceso</label>
                           <input
                             type="text"
-                            id="nivelAcceso"
-                            name="nivelAcceso"
                             value={adminFormData.nivelAcceso}
-                            onChange={handleAdminFormChange}
                             disabled
                           />
                           <span className="input-hint">
@@ -2992,15 +3575,10 @@ function AdminDashboard() {
                           </span>
                         </div>
                         <div className="form-group">
-                          <label htmlFor="areaResponsabilidad">
-                            Área Responsabilidad
-                          </label>
+                          <label>Área Responsabilidad</label>
                           <input
                             type="text"
-                            id="areaResponsabilidad"
-                            name="areaResponsabilidad"
                             value={adminFormData.areaResponsabilidad}
-                            onChange={handleAdminFormChange}
                             disabled
                           />
                           <span className="input-hint">
@@ -3008,7 +3586,6 @@ function AdminDashboard() {
                           </span>
                         </div>
                       </div>
-
                       <div
                         className="checkbox-row"
                         style={{ padding: "4px 0 10px" }}
@@ -3019,14 +3596,12 @@ function AdminDashboard() {
                         >
                           <input
                             type="checkbox"
-                            name="activo"
                             checked={adminFormData.activo}
                             disabled
                           />
                           <span>Usuario Activo (por defecto)</span>
                         </label>
                       </div>
-
                       <div className="modal-footer">
                         <button
                           type="button"
@@ -3052,7 +3627,9 @@ function AdminDashboard() {
             </div>
           )}
 
-          {/* ── Administradores Activos ── */}
+          {/* ══════════════════════════════════════════
+              ADMINISTRADORES ACTIVOS
+          ══════════════════════════════════════════ */}
           {activeSection === "administradores_activos" && (
             <div className="panel-card">
               <div className="panel-card-header">
@@ -3086,11 +3663,9 @@ function AdminDashboard() {
                   </button>
                 </form>
               </div>
-
               {activeAdminsError && (
                 <div className="error-message">{activeAdminsError}</div>
               )}
-
               {activeAdminsLoading ? (
                 <div className="loading-state">
                   Cargando administradores activos...
@@ -3139,7 +3714,6 @@ function AdminDashboard() {
           )}
         </main>
 
-        {/* Footer */}
         <footer className="adm-footer">
           © 2026 RestaurantApp · Panel de Administración · Todos los derechos
           reservados.

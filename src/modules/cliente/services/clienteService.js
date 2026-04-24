@@ -1,97 +1,73 @@
-// Servicio para el módulo de Cliente
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const API_BASE_URL =
+  "https://proyectofinalitlabackend-production.up.railway.app/api";
+
+const getToken = () => localStorage.getItem("token");
 
 /**
- * Obtiene los días disponibles para reservar
- * @returns {Promise} Lista de días disponibles
+ * Obtiene todas las disponibilidades futuras (para el cliente)
  */
 export const getAvailableDays = async () => {
-  try {
-    // TODO: Conectar con el API real
-    // Simulación - obtiene de localStorage (creado por admin)
-    const days = JSON.parse(localStorage.getItem('availableDays') || '[]')
-    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]')
-    
-    // Calcular reservaciones actuales por día
-    return days.map(day => {
-      const dayBookings = bookings.filter(
-        b => b.availableDayId === day.id && b.bookingState !== 'Cancelled'
-      )
-      return {
-        ...day,
-        currentBookings: dayBookings.length
-      }
-    })
-    
-    // Código real:
-    // const response = await fetch(`${API_BASE_URL}/cliente/available-days`, {
-    //   headers: {
-    //     'Authorization': `Bearer ${localStorage.getItem('token')}`
-    //   }
-    // })
-    // if (!response.ok) throw new Error('Error al obtener días')
-    // return await response.json()
-  } catch (error) {
-    throw error
-  }
-}
+  const res = await fetch(`${API_BASE_URL}/Availability/all`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error("Error al obtener días disponibles");
+  const data = await res.json();
 
+  const today = new Date();
+  const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  return data
+    .map((item) => ({
+      id: item.id,
+      date: item.date.split("T")[0],
+      startTime: item.timeSlots?.[0]?.startTime ?? "00:00",
+      endTime: item.timeSlots?.[0]?.endTime ?? "00:00",
+      timeSlotId: item.timeSlots?.[0]?.id ?? null,
+      maxBookings: 10,
+      currentBookings: item.timeSlots?.filter((ts) => ts.isBooked).length ?? 0,
+      createdBy: item.createdBy,
+    }))
+    .filter((day) => day.date >= todayISO) // ← solo hoy en adelante
+    .sort((a, b) => a.date.localeCompare(b.date)); // ← ordenadas por fecha
+};
 /**
- * Crea una nueva reservación
- * @param {Object} bookingData - Datos de la reservación
- * @returns {Promise} Reservación creada
+ * Crea una nueva reservación usando el endpoint real
  */
 export const createBooking = async (bookingData) => {
-  try {
-    // TODO: Conectar con el API real
-    // Simulación
-    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]')
-    
-    // Verificar disponibilidad
-    const day = JSON.parse(localStorage.getItem('availableDays') || '[]')
-      .find(d => d.id === bookingData.availableDayId)
-    
-    if (!day) {
-      throw new Error('Día no encontrado')
-    }
-    
-    const dayBookings = bookings.filter(
-      b => b.availableDayId === bookingData.availableDayId && b.bookingState !== 'Cancelled'
-    )
-    
-    if (dayBookings.length >= day.maxBookings) {
-      throw new Error('No hay disponibilidad para este día')
-    }
-    
-    const newBooking = {
-      id: Date.now().toString(),
-      dateAndTime: bookingData.dateAndTime,
-      bookedByClientName: bookingData.bookedByClientName,
-      bookingState: 'Pending', // Pending, Confirmed, Cancelled
-      availableDayId: bookingData.availableDayId,
-      createdAt: new Date().toISOString()
-    }
-    
-    bookings.push(newBooking)
-    localStorage.setItem('bookings', JSON.stringify(bookings))
-    return newBooking
-    
-    // Código real:
-    // const response = await fetch(`${API_BASE_URL}/cliente/bookings`, {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     'Authorization': `Bearer ${localStorage.getItem('token')}`
-    //   },
-    //   body: JSON.stringify(bookingData)
-    // })
-    // if (!response.ok) {
-    //   const error = await response.json()
-    //   throw new Error(error.message || 'Error al crear reservación')
-    // }
-    // return await response.json()
-  } catch (error) {
-    throw error
-  }
-}
+  const token = getToken();
 
+  // Decodificar el userId del JWT
+  let userId = null;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    userId = payload.nameid;
+  } catch {
+    throw new Error(
+      "No se pudo identificar el usuario. Inicia sesión de nuevo.",
+    );
+  }
+
+  const payload = {
+    timeSlotId: bookingData.availableDayId, // availableDayId = timeSlotId en nuestro mapeo
+    userId,
+    date: bookingData.dateAndTime,
+    numeroPersonas: bookingData.numeroPersonas ?? 1,
+    comentarios: bookingData.comentarios ?? "",
+  };
+
+  const res = await fetch(`${API_BASE_URL}/Reservations`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err || "Error al crear la reservación");
+  }
+
+  return res.json();
+};
