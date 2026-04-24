@@ -430,4 +430,25 @@ export const deleteAvailableDay = async (id) => {
   } catch (error) {
     throw error;
   }
+
+  /**
+   * Obtiene el historial de ventas/movimientos de un producto para la IA
+   * GET /api/Inventario/{id}/historial-prediccion
+   */
+};
+
+/**
+ * Obtiene el historial de ventas/movimientos de un producto para la IA
+ * GET /api/Inventario/{id}/historial-prediccion
+ */
+export const getProductoHistorial = async (id) => {
+  const response = await fetch(
+    `${API_BASE_URL}/Inventario/${id}/historial-prediccion`,
+    {
+      headers: authHeaders(),
+    },
+  );
+  if (!response.ok)
+    throw new Error("Error al obtener el historial del producto");
+  return await response.json();
 };

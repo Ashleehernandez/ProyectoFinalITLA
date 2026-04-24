@@ -20,6 +20,7 @@ import {
   createInventario,
   createAvailability,
   getAvailabilityList,
+  getProductoHistorial,
 } from "../services/adminService";
 import "../styles/admin.css";
 
@@ -169,52 +170,72 @@ function AdminDashboard() {
       setAiError("Por favor seleccione al menos un producto a analizar.");
       return;
     }
+
     setAiLoading(true);
     setAiError(null);
-    try {
-      const payload = {
-        historial: [
-          { fecha: "2023-01-01", cantidad: 120.5 },
-          { fecha: "2023-02-01", cantidad: 135.0 },
-          { fecha: "2023-03-01", cantidad: 128.5 },
-          { fecha: "2023-04-01", cantidad: 145.0 },
-          { fecha: "2023-05-01", cantidad: 150.0 },
-          { fecha: "2023-06-01", cantidad: 165.5 },
-          { fecha: "2023-07-01", cantidad: 160.0 },
-          { fecha: "2023-08-01", cantidad: 180.0 },
-          { fecha: "2023-09-01", cantidad: 175.5 },
-          { fecha: "2023-10-01", cantidad: 195.0 },
-          { fecha: "2023-11-01", cantidad: 210.0 },
-          { fecha: "2023-12-01", cantidad: 235.5 },
-        ],
-        meses_a_predecir: Number(aiMeses),
-      };
 
-      const allResults = [];
-      const currentToken = localStorage.getItem("token") || "";
+    try {
+      const productosPayload = [];
+
       for (const prodName of aiSelectedProducts) {
-        const res = await fetch(
-          "https://sigidai-modelmicroservice-production.up.railway.app/predict",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${currentToken}`,
-            },
-            body: JSON.stringify(payload),
-          },
-        );
-        if (!res.ok) throw new Error("Falló la conexión con el motor de IA");
-        const data = await res.json();
-        allResults.push({
-          producto: prodName,
-          predicciones: data.predicciones || [],
-        });
+        const productoObj = inventarioLista.find((p) => p.nombre === prodName);
+        if (!productoObj) continue;
+
+        try {
+          const historialReal = await getProductoHistorial(productoObj.id);
+
+          if (historialReal && historialReal.length >= 2) {
+            productosPayload.push({
+              producto: prodName,
+              historial: historialReal,
+            });
+          } else {
+            console.warn(
+              `El producto ${prodName} no tiene historial suficiente (mínimo 2 meses).`,
+            );
+          }
+        } catch (e) {
+          console.error(`No se pudo obtener el historial de ${prodName}`, e);
+        }
       }
 
-      setAiResults(allResults);
+      if (productosPayload.length === 0) {
+        throw new Error(
+          "Ninguno de los productos seleccionados tiene suficientes datos históricos (se requieren mínimo 2 meses).",
+        );
+      }
+
+      const payload = {
+        meses_a_predecir: Number(aiMeses),
+        productos: productosPayload,
+      };
+
+      const currentToken = localStorage.getItem("token") || "";
+      const res = await fetch(
+        "https://sigidai-modelmicroservice-production.up.railway.app/predict",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${currentToken}`,
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      if (!res.ok) throw new Error("Falló la conexión con el motor de IA");
+
+      const data = await res.json();
+
+      if (data.resultados) {
+        setAiResults(data.resultados);
+      } else {
+        setAiResults([]);
+      }
     } catch (err) {
-      setAiError("No se pudo generar la predicción. Intente más tarde.");
+      setAiError(
+        err.message || "No se pudo generar la predicción. Intente más tarde.",
+      );
     } finally {
       setAiLoading(false);
     }
