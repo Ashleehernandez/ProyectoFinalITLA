@@ -1,10 +1,12 @@
 // Servicio para el módulo de Administración
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://proyectofinalitlabackend-production.up.railway.app/api'
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  "https://proyectofinalitlabackend-production.up.railway.app/api";
 
 const authHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-})
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+});
 
 // ──────────────────────────────────────────────
 //  PERFILES DE USUARIO
@@ -16,14 +18,13 @@ const authHeaders = () => ({
  * @returns {Promise} Datos del perfil
  */
 export const getProfile = async () => {
-  const token = localStorage.getItem('token') || ''
+  const token = localStorage.getItem("token") || "";
   const response = await fetch(`${API_BASE_URL}/Auth/profile?token=${token}`, {
-    headers: authHeaders()
-  })
-  if (!response.ok) throw new Error('Error al obtener perfil')
-  return await response.json()
-}
-
+    headers: authHeaders(),
+  });
+  if (!response.ok) throw new Error("Error al obtener perfil");
+  return await response.json();
+};
 
 // ──────────────────────────────────────────────
 //  ADMINISTRADORES
@@ -35,12 +36,12 @@ export const getProfile = async () => {
  */
 export const getAdmins = async () => {
   const response = await fetch(`${API_BASE_URL}/Administradores`, {
-    headers: authHeaders()
-  })
-  if (!response.ok) throw new Error('Error al obtener administradores')
-  const data = await response.json()
-  return Array.isArray(data) ? data : (data.data || data.administradores || [])
-}
+    headers: authHeaders(),
+  });
+  if (!response.ok) throw new Error("Error al obtener administradores");
+  const data = await response.json();
+  return Array.isArray(data) ? data : data.data || data.administradores || [];
+};
 
 /**
  * Lista solo los administradores activos
@@ -48,37 +49,43 @@ export const getAdmins = async () => {
  */
 export const getActiveAdmins = async () => {
   const response = await fetch(`${API_BASE_URL}/Administradores/activos`, {
-    headers: authHeaders()
-  })
-  const data = await response.json()
-  return Array.isArray(data) ? data : (data.data || data.administradores || [])
-}
+    headers: authHeaders(),
+  });
+  const data = await response.json();
+  return Array.isArray(data) ? data : data.data || data.administradores || [];
+};
 
 /**
  * Busca administradores por nombre
  * GET /api/Administradores/buscar?nombre={nombre}
  */
 export const searchAdmins = async (nombre) => {
-  if (!nombre) return getActiveAdmins()
-  const response = await fetch(`${API_BASE_URL}/Administradores/buscar?nombre=${encodeURIComponent(nombre)}`, {
-    headers: authHeaders()
-  })
-  if (!response.ok) throw new Error('Error al buscar administradores')
-  const data = await response.json()
-  return Array.isArray(data) ? data : (data.data || data.administradores || [])
-}
+  if (!nombre) return getActiveAdmins();
+  const response = await fetch(
+    `${API_BASE_URL}/Administradores/buscar?nombre=${encodeURIComponent(nombre)}`,
+    {
+      headers: authHeaders(),
+    },
+  );
+  if (!response.ok) throw new Error("Error al buscar administradores");
+  const data = await response.json();
+  return Array.isArray(data) ? data : data.data || data.administradores || [];
+};
 
 /**
  * Obtiene el resumen de inventario
  * GET /api/Administradores/dashboard/inventario-resumen
  */
 export const getInventarioResumen = async () => {
-  const response = await fetch(`${API_BASE_URL}/Administradores/dashboard/inventario-resumen`, {
-    headers: authHeaders()
-  })
-  if (!response.ok) throw new Error('Error al obtener resumen de inventario')
-  return await response.json()
-}
+  const response = await fetch(
+    `${API_BASE_URL}/Administradores/dashboard/inventario-resumen`,
+    {
+      headers: authHeaders(),
+    },
+  );
+  if (!response.ok) throw new Error("Error al obtener resumen de inventario");
+  return await response.json();
+};
 
 /**
  * Obtiene la lista completa de productos en el inventario
@@ -86,11 +93,11 @@ export const getInventarioResumen = async () => {
  */
 export const getInventario = async () => {
   const response = await fetch(`${API_BASE_URL}/Inventario`, {
-    headers: authHeaders()
-  })
-  if (!response.ok) throw new Error('Error al obtener listado de inventario')
-  return await response.json()
-}
+    headers: authHeaders(),
+  });
+  if (!response.ok) throw new Error("Error al obtener listado de inventario");
+  return await response.json();
+};
 
 /**
  * Agrega un nuevo producto al inventario
@@ -98,56 +105,66 @@ export const getInventario = async () => {
  */
 export const createInventario = async (payload) => {
   const response = await fetch(`${API_BASE_URL}/Inventario`, {
-    method: 'POST',
-    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  })
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.message || 'Error al crear producto')
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || "Error al crear producto");
   }
-  return await response.json()
-}
+  return await response.json();
+};
 
 /**
  * Obtiene el resumen de empleados (prestadores) presentes y sus turnos
  * GET /api/Administradores/dashboard/empleados-presentes
  */
 export const getEmpleadosPresentes = async () => {
-  const response = await fetch(`${API_BASE_URL}/Administradores/dashboard/empleados-presentes`, {
-    headers: authHeaders()
-  })
-  if (!response.ok) throw new Error('Error al obtener empleados presentes')
-  return await response.json()
-}
+  const response = await fetch(
+    `${API_BASE_URL}/Administradores/dashboard/empleados-presentes`,
+    {
+      headers: authHeaders(),
+    },
+  );
+  if (!response.ok) throw new Error("Error al obtener empleados presentes");
+  return await response.json();
+};
 
 /**
  * Obtiene el reporte de ventas filtrado por rango de fechas
  * GET /api/Administradores/reportes/ventas?fechaInicio={inicio}&fechaFin={fin}
  */
 export const getReporteVentas = async (fechaInicio, fechaFin) => {
-  const query = new URLSearchParams()
-  if (fechaInicio) query.append('fechaInicio', fechaInicio)
-  if (fechaFin) query.append('fechaFin', fechaFin)
-  
-  const response = await fetch(`${API_BASE_URL}/Administradores/reportes/ventas?${query.toString()}`, {
-    headers: authHeaders()
-  })
-  if (!response.ok) throw new Error('Error al obtener reporte de ventas')
-  return await response.json()
-}
+  const query = new URLSearchParams();
+  if (fechaInicio) query.append("fechaInicio", fechaInicio);
+  if (fechaFin) query.append("fechaFin", fechaFin);
+
+  const response = await fetch(
+    `${API_BASE_URL}/Administradores/reportes/ventas?${query.toString()}`,
+    {
+      headers: authHeaders(),
+    },
+  );
+  if (!response.ok) throw new Error("Error al obtener reporte de ventas");
+  return await response.json();
+};
 
 /**
  * Obtiene el registro de auditoría de actividades
  * GET /api/Administradores/auditoria/actividades?limite={limite}
  */
 export const getAuditoriaActividades = async (limite = 100) => {
-  const response = await fetch(`${API_BASE_URL}/Administradores/auditoria/actividades?limite=${limite}`, {
-    headers: authHeaders()
-  })
-  if (!response.ok) throw new Error('Error al obtener auditoría de actividades')
-  return await response.json()
-}
+  const response = await fetch(
+    `${API_BASE_URL}/Administradores/auditoria/actividades?limite=${limite}`,
+    {
+      headers: authHeaders(),
+    },
+  );
+  if (!response.ok)
+    throw new Error("Error al obtener auditoría de actividades");
+  return await response.json();
+};
 
 /**
  * Crea un nuevo super administrador
@@ -155,16 +172,16 @@ export const getAuditoriaActividades = async (limite = 100) => {
  */
 export const createAdmin = async (payload) => {
   const response = await fetch(`${API_BASE_URL}/Administradores`, {
-    method: 'POST',
+    method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify(payload)
-  })
+    body: JSON.stringify(payload),
+  });
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.message || 'Error al crear administrador')
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || "Error al crear administrador");
   }
-  return await response.json()
-}
+  return await response.json();
+};
 
 /**
  * Elimina un administrador por su ID
@@ -172,16 +189,15 @@ export const createAdmin = async (payload) => {
  */
 export const deleteAdmin = async (id) => {
   const response = await fetch(`${API_BASE_URL}/Administradores/${id}`, {
-    method: 'DELETE',
-    headers: authHeaders()
-  })
+    method: "DELETE",
+    headers: authHeaders(),
+  });
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.message || 'Error al eliminar administrador')
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || "Error al eliminar administrador");
   }
-  return true
-}
-
+  return true;
+};
 
 // ──────────────────────────────────────────────
 //  CONFIGURACIÓN DEL RESTAURANTE
@@ -192,27 +208,33 @@ export const deleteAdmin = async (id) => {
  * @returns {Promise} { capacidadMaxima, horaApertura, horaCierre, tiempoPromedioMesa, margenGanancia }
  */
 export const getConfig = async () => {
-  const response = await fetch(`${API_BASE_URL}/Administradores/configuracion`, {
-    headers: authHeaders()
-  })
-  if (!response.ok) throw new Error('Error al obtener configuración')
-  return await response.json()
-}
+  const response = await fetch(
+    `${API_BASE_URL}/Administradores/configuracion`,
+    {
+      headers: authHeaders(),
+    },
+  );
+  if (!response.ok) throw new Error("Error al obtener configuración");
+  return await response.json();
+};
 
 /**
  * Guarda/actualiza la configuración del restaurante
  * @param {Object} config - { capacidadMaxima, horaApertura, horaCierre }
  */
 export const saveConfig = async (config) => {
-  const response = await fetch(`${API_BASE_URL}/Administradores/configuracion`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify(config)
-  })
-  if (!response.ok) throw new Error('Error al guardar configuración')
-  const text = await response.text()
-  return text ? JSON.parse(text) : {}
-}
+  const response = await fetch(
+    `${API_BASE_URL}/Administradores/configuracion`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(config),
+    },
+  );
+  if (!response.ok) throw new Error("Error al guardar configuración");
+  const text = await response.text();
+  return text ? JSON.parse(text) : {};
+};
 
 // ──────────────────────────────────────────────
 //  PREDICCIÓN DE DEMANDA (períodos habilitados)
@@ -224,13 +246,13 @@ export const saveConfig = async (config) => {
  */
 export const getPredicciones = async () => {
   const response = await fetch(`${API_BASE_URL}/PrediccionDemanda`, {
-    headers: authHeaders()
-  })
-  if (!response.ok) throw new Error('Error al obtener predicciones')
-  const data = await response.json()
+    headers: authHeaders(),
+  });
+  if (!response.ok) throw new Error("Error al obtener predicciones");
+  const data = await response.json();
   // La API puede devolver el array directamente o dentro de una propiedad
-  return Array.isArray(data) ? data : (data.data || data.predicciones || [])
-}
+  return Array.isArray(data) ? data : data.data || data.predicciones || [];
+};
 
 /**
  * Genera una nueva predicción de demanda para un período
@@ -239,35 +261,35 @@ export const getPredicciones = async () => {
  */
 export const createPrediccion = async (periodo) => {
   const response = await fetch(`${API_BASE_URL}/PrediccionDemanda`, {
-    method: 'POST',
+    method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify(periodo)
-  })
+    body: JSON.stringify(periodo),
+  });
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.message || 'Error al generar predicción')
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || "Error al generar predicción");
   }
-  const text = await response.text()
-  return text ? JSON.parse(text) : {}
-}
+  const text = await response.text();
+  return text ? JSON.parse(text) : {};
+};
 
 /**
  * Agrega una nueva fecha de disponibilidad (reserva) manual
- * @param {Object} payload 
+ * @param {Object} payload
  */
 export const createAvailability = async (payload) => {
   const response = await fetch(`${API_BASE_URL}/Availability`, {
-    method: 'POST',
+    method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify(payload)
-  })
+    body: JSON.stringify(payload),
+  });
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.message || 'Error al crear la fecha de disponibilidad')
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || "Error al crear la fecha de disponibilidad");
   }
-  const text = await response.text()
-  return text ? JSON.parse(text) : {}
-}
+  const text = await response.text();
+  return text ? JSON.parse(text) : {};
+};
 
 // ──────────────────────────────────────────────
 //  DASHBOARD STATS
@@ -277,24 +299,38 @@ export const createAvailability = async (payload) => {
  * Obtiene las estadísticas generales del dashboard
  */
 export const getDashboardStats = async () => {
-  const response = await fetch(`${API_BASE_URL}/Administradores/dashboard/estadisticas`, {
-    headers: authHeaders()
-  })
-  if (!response.ok) throw new Error('Error al obtener estadísticas')
-  return await response.json()
-}
+  const response = await fetch(
+    `${API_BASE_URL}/Administradores/dashboard/estadisticas`,
+    {
+      headers: authHeaders(),
+    },
+  );
+  if (!response.ok) throw new Error("Error al obtener estadísticas");
+  return await response.json();
+};
+
+export const getAvailabilityList = async () => {
+  const response = await fetch(`${API_BASE_URL}/Availability`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok)
+    throw new Error("Error al obtener la lista de disponibilidades");
+  return await response.json();
+};
 
 /**
  * Obtiene las reservas de hoy
  */
 export const getReservasHoy = async () => {
-  const response = await fetch(`${API_BASE_URL}/Administradores/dashboard/reservas-hoy`, {
-    headers: authHeaders()
-  })
-  if (!response.ok) throw new Error('Error al obtener reservas de hoy')
-  return await response.json()
-}
-
+  const response = await fetch(
+    `${API_BASE_URL}/Administradores/dashboard/reservas-hoy`,
+    {
+      headers: authHeaders(),
+    },
+  );
+  if (!response.ok) throw new Error("Error al obtener reservas de hoy");
+  return await response.json();
+};
 
 /**
  * Obtiene todos los días disponibles
@@ -304,20 +340,20 @@ export const getAvailableDays = async () => {
   try {
     // TODO: Conectar con el API real
     // Simulación con datos mock
-    const mockDays = JSON.parse(localStorage.getItem('availableDays') || '[]')
-    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]')
-    
+    const mockDays = JSON.parse(localStorage.getItem("availableDays") || "[]");
+    const bookings = JSON.parse(localStorage.getItem("bookings") || "[]");
+
     // Calcular reservaciones actuales por día
-    return mockDays.map(day => {
+    return mockDays.map((day) => {
       const dayBookings = bookings.filter(
-        b => b.availableDayId === day.id && b.bookingState !== 'Cancelled'
-      )
+        (b) => b.availableDayId === day.id && b.bookingState !== "Cancelled",
+      );
       return {
         ...day,
-        currentBookings: dayBookings.length
-      }
-    })
-    
+        currentBookings: dayBookings.length,
+      };
+    });
+
     // Código real cuando se integre:
     // const response = await fetch(`${API_BASE_URL}/admin/available-days`, {
     //   headers: {
@@ -327,9 +363,9 @@ export const getAvailableDays = async () => {
     // if (!response.ok) throw new Error('Error al obtener días')
     // return await response.json()
   } catch (error) {
-    throw error
+    throw error;
   }
-}
+};
 
 /**
  * Crea un nuevo día disponible
@@ -340,7 +376,7 @@ export const createAvailableDay = async (dayData) => {
   try {
     // TODO: Conectar con el API real
     // Simulación
-    const days = JSON.parse(localStorage.getItem('availableDays') || '[]')
+    const days = JSON.parse(localStorage.getItem("availableDays") || "[]");
     const newDay = {
       id: Date.now().toString(),
       date: dayData.date,
@@ -348,12 +384,12 @@ export const createAvailableDay = async (dayData) => {
       endTime: dayData.endTime,
       maxBookings: parseInt(dayData.maxBookings),
       currentBookings: 0,
-      createdAt: new Date().toISOString()
-    }
-    days.push(newDay)
-    localStorage.setItem('availableDays', JSON.stringify(days))
-    return newDay
-    
+      createdAt: new Date().toISOString(),
+    };
+    days.push(newDay);
+    localStorage.setItem("availableDays", JSON.stringify(days));
+    return newDay;
+
     // Código real:
     // const response = await fetch(`${API_BASE_URL}/admin/available-days`, {
     //   method: 'POST',
@@ -366,9 +402,9 @@ export const createAvailableDay = async (dayData) => {
     // if (!response.ok) throw new Error('Error al crear día')
     // return await response.json()
   } catch (error) {
-    throw error
+    throw error;
   }
-}
+};
 
 /**
  * Elimina un día disponible
@@ -379,10 +415,10 @@ export const deleteAvailableDay = async (id) => {
   try {
     // TODO: Conectar con el API real
     // Simulación
-    const days = JSON.parse(localStorage.getItem('availableDays') || '[]')
-    const filtered = days.filter(day => day.id !== id)
-    localStorage.setItem('availableDays', JSON.stringify(filtered))
-    
+    const days = JSON.parse(localStorage.getItem("availableDays") || "[]");
+    const filtered = days.filter((day) => day.id !== id);
+    localStorage.setItem("availableDays", JSON.stringify(filtered));
+
     // Código real:
     // const response = await fetch(`${API_BASE_URL}/admin/available-days/${id}`, {
     //   method: 'DELETE',
@@ -392,7 +428,6 @@ export const deleteAvailableDay = async (id) => {
     // })
     // if (!response.ok) throw new Error('Error al eliminar día')
   } catch (error) {
-    throw error
+    throw error;
   }
-}
-
+};
