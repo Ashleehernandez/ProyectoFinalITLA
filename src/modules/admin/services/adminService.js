@@ -251,6 +251,24 @@ export const createPrediccion = async (periodo) => {
   return text ? JSON.parse(text) : {}
 }
 
+/**
+ * Agrega una nueva fecha de disponibilidad (reserva) manual
+ * @param {Object} payload 
+ */
+export const createAvailability = async (payload) => {
+  const response = await fetch(`${API_BASE_URL}/Availability`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload)
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.message || 'Error al crear la fecha de disponibilidad')
+  }
+  const text = await response.text()
+  return text ? JSON.parse(text) : {}
+}
+
 // ──────────────────────────────────────────────
 //  DASHBOARD STATS
 // ──────────────────────────────────────────────

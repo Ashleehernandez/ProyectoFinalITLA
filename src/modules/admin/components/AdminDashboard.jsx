@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getConfig, saveConfig, getPredicciones, createPrediccion, getProfile, getAdmins, deleteAdmin, getActiveAdmins, searchAdmins, getDashboardStats, getReservasHoy, getInventarioResumen, getEmpleadosPresentes, getReporteVentas, getAuditoriaActividades, getInventario, createInventario } from '../services/adminService'
+import { getConfig, saveConfig, getPredicciones, createPrediccion, getProfile, getAdmins, deleteAdmin, getActiveAdmins, searchAdmins, getDashboardStats, getReservasHoy, getInventarioResumen, getEmpleadosPresentes, getReporteVentas, getAuditoriaActividades, getInventario, createInventario, createAvailability, getAvailabilityList } from '../services/adminService'
 import '../styles/admin.css'
 
 const MENU_ITEMS = [
@@ -10,10 +10,19 @@ const MENU_ITEMS = [
   { id: 'inventario',    icon: '📦', label: 'Inventario' },
   { id: 'prestadores',   icon: '👥', label: 'Prestadores' },
   { id: 'configuracion', icon: '⚙️', label: 'Configuración' },
+  { id: 'disponibilidad', icon: '🗓️', label: 'Agregar Fecha Reserva' },
   { id: 'periodos',      icon: '📅', label: 'Períodos de Disponibilidad' },
   { id: 'administradores', icon: '🛡️', label: 'Super Administradores' },
   { id: 'administradores_activos', icon: '✅', label: 'Admins Activos' },
 ]
+
+const CATEGORIAS_INVENTARIO = [
+  { id: 1, name: 'Comidas y Aperitivos' },
+  { id: 2, name: 'Bebidas Varios' },
+  { id: 3, name: 'Insumos de Cocina' },
+  { id: 4, name: 'Suministros Generales' },
+  { id: 5, name: 'Limpieza y Mantenimiento' }
+];
 
 // Genera las iniciales del nombre para el avatar
 function getInitials(profile) {
@@ -114,6 +123,114 @@ function AdminDashboard() {
   // ── Profile State ──
   const [profile, setProfile] = useState(null)
 
+  // ── AI Prediction State ──
+  const [showAIModal, setShowAIModal] = useState(false)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiResults, setAiResults] = useState(null)
+  const [aiError, setAiError] = useState(null)
+  const [aiSelectedProducts, setAiSelectedProducts] = useState([])
+  const [aiMeses, setAiMeses] = useState(3)
+
+  const handleAIPrediction = async () => {
+    if (!aiSelectedProducts || aiSelectedProducts.length === 0) {
+      setAiError('Por favor seleccione al menos un producto a analizar.')
+      return
+    }
+    setAiLoading(true)
+    setAiError(null)
+    try {
+      const payload = {
+        historial: [
+          { fecha: "2023-01-01", cantidad: 120.5 },
+          { fecha: "2023-02-01", cantidad: 135.0 },
+          { fecha: "2023-03-01", cantidad: 128.5 },
+          { fecha: "2023-04-01", cantidad: 145.0 },
+          { fecha: "2023-05-01", cantidad: 150.0 },
+          { fecha: "2023-06-01", cantidad: 165.5 },
+          { fecha: "2023-07-01", cantidad: 160.0 },
+          { fecha: "2023-08-01", cantidad: 180.0 },
+          { fecha: "2023-09-01", cantidad: 175.5 },
+          { fecha: "2023-10-01", cantidad: 195.0 },
+          { fecha: "2023-11-01", cantidad: 210.0 },
+          { fecha: "2023-12-01", cantidad: 235.5 }
+        ],
+        meses_a_predecir: Number(aiMeses)
+      }
+      
+      const allResults = []
+      const currentToken = localStorage.getItem('token') || ''
+      for (const prodName of aiSelectedProducts) {
+        const res = await fetch('https://sigidai-modelmicroservice-production.up.railway.app/predict', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentToken}`
+          },
+          body: JSON.stringify(payload)
+        })
+        if (!res.ok) throw new Error('Falló la conexión con el motor de IA')
+        const data = await res.json()
+        allResults.push({ producto: prodName, predicciones: data.predicciones || [] })
+      }
+      
+      setAiResults(allResults)
+    } catch (err) {
+      setAiError('No se pudo generar la predicción. Intente más tarde.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  // ── Disponibilidad State ──
+  const [showDispoForm, setShowDispoForm] = useState(false)
+  const [dispoFormData, setDispoFormData] = useState({ date: '', startTime: '', endTime: '' })
+  const [dispoLoading, setDispoLoading] = useState(false)
+  const [dispoError, setDispoError] = useState('')
+  const [dispoSuccess, setDispoSuccess] = useState('')
+
+  const [availabilityList, setAvailabilityList] = useState([])
+  const [availabilityLoading, setAvailabilityLoading] = useState(false)
+  const [availabilityError, setAvailabilityError] = useState('')
+
+  const loadAvailability = async () => {
+    setAvailabilityLoading(true)
+    setAvailabilityError('')
+    try {
+      const data = await getAvailabilityList()
+      setAvailabilityList(data)
+    } catch (err) {
+      setAvailabilityError('Error al leer listado de fechas de reserva')
+    } finally {
+      setAvailabilityLoading(false)
+    }
+  }
+
+  const handleCreateAvailability = async (e) => {
+    e.preventDefault()
+    setDispoLoading(true)
+    setDispoError('')
+    setDispoSuccess('')
+    try {
+      const payload = {
+        date: dispoFormData.date,
+        timeSlots: [
+          { startTime: dispoFormData.startTime, endTime: dispoFormData.endTime }
+        ],
+        createdBy: profile?.email || profile?.userName || 'Admin'
+      }
+      await createAvailability(payload)
+      setDispoSuccess('Fecha de reserva agregada exitosamente.')
+      setShowDispoForm(false)
+      setDispoFormData({ date: '', startTime: '', endTime: '' })
+      loadAvailability()
+      setTimeout(() => setDispoSuccess(''), 3000)
+    } catch(err) {
+      setDispoError(err.message || 'Error al contactar a la API de Disponibilidad')
+    } finally {
+      setDispoLoading(false)
+    }
+  }
+
   useEffect(() => {
     loadStats()
     loadInventario()
@@ -125,6 +242,7 @@ function AdminDashboard() {
     loadProfile()
     loadAdmins()
     loadActiveAdmins()
+    loadAvailability()
   }, [])
 
   const loadPrestadores = async () => {
@@ -244,8 +362,14 @@ function AdminDashboard() {
 
   const loadProfile = async () => {
     try {
+      const localUserStr = localStorage.getItem('user');
+      if (localUserStr) {
+        setProfile(JSON.parse(localUserStr));
+      }
       const data = await getProfile()
-      setProfile(data.data || data.user || data)
+      if (data && (data.data || data.user || data.id)) {
+        setProfile(data.data || data.user || data)
+      }
     } catch { /* silent */ }
   }
 
@@ -541,9 +665,9 @@ function AdminDashboard() {
                     const displayValue = isCurrency && typeof value === 'number' ? `$${value.toLocaleString()}` : value;
 
                     return (
-                      <div key={key} style={{ background: '#fff', padding: '24px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', border: '1px solid #f3f4f6' }}>
-                        <h3 style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>{label}</h3>
-                        <p style={{ fontSize: '32px', fontWeight: '700', color: '#111827' }}>{displayValue}</p>
+                      <div key={key} className="kpi-card">
+                        <h3 style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px', zIndex: 1, position: 'relative' }}>{label}</h3>
+                        <p style={{ fontSize: '32px', fontWeight: '800', color: '#111827', zIndex: 1, position: 'relative' }}>{displayValue}</p>
                       </div>
                     )
                   })}
@@ -554,8 +678,8 @@ function AdminDashboard() {
               <div className="panel-card" style={{ padding: '0', overflow: 'hidden', marginTop: '24px' }}>
                 <div className="panel-card-header" style={{ padding: '20px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>Listado de Productos</h3>
-                  <button onClick={() => setShowInventarioForm(true)} className="action-btn primary" style={{ height: '36px', padding: '0 16px', fontSize: '14px' }}>
-                    + Nuevo Producto
+                  <button onClick={() => setShowInventarioForm(true)} className="action-btn primary">
+                    <span style={{ fontSize: '16px', fontWeight: 'bold' }}>+</span> Nuevo Producto
                   </button>
                 </div>
                 {inventarioListaError && <div className="error-message">{inventarioListaError}</div>}
@@ -602,85 +726,194 @@ function AdminDashboard() {
               {/* Inventario Modal */}
               {showInventarioForm && (
                 <div className="modal-backdrop" onClick={() => setShowInventarioForm(false)}>
-                  <div className="modal-box" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
-                    <div className="modal-header">
+                  <div className="modal-box" style={{ maxWidth: '750px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+                    <div className="modal-header" style={{ padding: '24px 28px', borderBottom: 'none' }}>
                       <div>
                         <h2>Nuevo Producto de Inventario</h2>
-                        <p>Completa los datos para registrar un nuevo producto</p>
+                        <p>Completa los datos detallados para registrar el artículo</p>
                       </div>
                       <button className="modal-close" onClick={() => setShowInventarioForm(false)}>✕</button>
                     </div>
                     
-                    {inventarioFormError && <div className="error-message" style={{ margin: '16px 28px 0' }}>{inventarioFormError}</div>}
+                    {inventarioFormError && <div className="error-message" style={{ margin: '0 28px 16px' }}>{inventarioFormError}</div>}
                     
-                    <form onSubmit={handleCreateInventario} className="config-form">
-                      <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                        <div className="form-group">
-                          <label>Nombre *</label>
-                          <input type="text" value={inventarioFormData.nombre} onChange={e => setInventarioFormData({...inventarioFormData, nombre: e.target.value})} required />
+                    <form onSubmit={handleCreateInventario} className="config-form" style={{ padding: '0 28px 24px' }}>
+                      
+                      {/* SECCIÓN 1 */}
+                      <div className="form-section">
+                        <div className="section-title"><span>📋</span> Información General</div>
+                        <div className="form-row-2">
+                          <div className="form-group">
+                            <label>Nombre del Producto *</label>
+                            <input type="text" placeholder="Ej: Bebida Cola 2L" value={inventarioFormData.nombre} onChange={e => setInventarioFormData({...inventarioFormData, nombre: e.target.value})} required />
+                          </div>
+                          <div className="form-group">
+                            <label>Categoría *</label>
+                            <select value={inventarioFormData.categoria} onChange={e => setInventarioFormData({...inventarioFormData, categoria: e.target.value})} required className="modern-select">
+                              <option value="">Seleccione una categoría...</option>
+                              {CATEGORIAS_INVENTARIO.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                          </div>
                         </div>
-                        <div className="form-group">
-                          <label>Categoría (ID) *</label>
-                          <input type="number" min="1" value={inventarioFormData.categoria} onChange={e => setInventarioFormData({...inventarioFormData, categoria: e.target.value})} required />
-                        </div>
-                      </div>
-
-                      <div className="form-group">
-                        <label>Descripción</label>
-                        <input type="text" value={inventarioFormData.descripcion} onChange={e => setInventarioFormData({...inventarioFormData, descripcion: e.target.value})} />
-                      </div>
-
-                      <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
-                        <div className="form-group">
-                          <label>Cantidad Actual *</label>
-                          <input type="number" min="0" value={inventarioFormData.cantidadActual} onChange={e => setInventarioFormData({...inventarioFormData, cantidadActual: e.target.value})} required />
-                        </div>
-                        <div className="form-group">
-                          <label>Cant. Mínima *</label>
-                          <input type="number" min="0" value={inventarioFormData.cantidadMinima} onChange={e => setInventarioFormData({...inventarioFormData, cantidadMinima: e.target.value})} required />
-                        </div>
-                        <div className="form-group">
-                          <label>Cant. Máxima *</label>
-                          <input type="number" min="0" value={inventarioFormData.cantidadMaxima} onChange={e => setInventarioFormData({...inventarioFormData, cantidadMaxima: e.target.value})} required />
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label>Descripción</label>
+                          <input type="text" placeholder="Breve descripción del artículo..." value={inventarioFormData.descripcion} onChange={e => setInventarioFormData({...inventarioFormData, descripcion: e.target.value})} />
                         </div>
                       </div>
 
-                      <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                        <div className="form-group">
-                          <label>Unidad *</label>
-                          <select value={inventarioFormData.unidad} onChange={e => setInventarioFormData({...inventarioFormData, unidad: e.target.value})} required>
-                            <option value="unidades">Unidades</option>
-                            <option value="kg">Kilogramos</option>
-                            <option value="litros">Litros</option>
-                            <option value="cajas">Cajas</option>
-                          </select>
+                      {/* SECCIÓN 2 */}
+                      <div className="form-section">
+                        <div className="section-title"><span>📦</span> Control de Inventario</div>
+                        <div className="form-row-3">
+                          <div className="form-group">
+                            <label>Cantidad Actual *</label>
+                            <input type="number" min="0" placeholder="0" value={inventarioFormData.cantidadActual} onChange={e => setInventarioFormData({...inventarioFormData, cantidadActual: e.target.value})} required />
+                          </div>
+                          <div className="form-group">
+                            <label>Cant. Mínima (Alerta) *</label>
+                            <input type="number" min="0" placeholder="0" value={inventarioFormData.cantidadMinima} onChange={e => setInventarioFormData({...inventarioFormData, cantidadMinima: e.target.value})} required />
+                            <span className="input-hint">Stock mínimo recomendable</span>
+                          </div>
+                          <div className="form-group">
+                            <label>Cant. Máxima (Límite) *</label>
+                            <input type="number" min="0" placeholder="0" value={inventarioFormData.cantidadMaxima} onChange={e => setInventarioFormData({...inventarioFormData, cantidadMaxima: e.target.value})} required />
+                            <span className="input-hint">Límite según capacidad</span>
+                          </div>
                         </div>
-                        <div className="form-group">
-                          <label>Precio Costo *</label>
-                          <input type="number" step="0.01" min="0" value={inventarioFormData.precioCosto} onChange={e => setInventarioFormData({...inventarioFormData, precioCosto: e.target.value})} required />
+                        <div className="form-row-2" style={{ marginBottom: 0 }}>
+                          <div className="form-group">
+                            <label>Unidad de Medida *</label>
+                            <select value={inventarioFormData.unidad} onChange={e => setInventarioFormData({...inventarioFormData, unidad: e.target.value})} required className="modern-select">
+                              <option value="unidades">Unidades</option>
+                              <option value="kg">Kilogramos</option>
+                              <option value="litros">Litros</option>
+                              <option value="cajas">Cajas</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                        <div className="form-group">
+                      {/* SECCIÓN 3 */}
+                      <div className="form-section" style={{ marginBottom: '16px' }}>
+                        <div className="section-title"><span>💰</span> Costos y Proveedor</div>
+                        <div className="form-row-2">
+                          <div className="form-group">
+                            <label>Precio Costo ($) *</label>
+                            <input type="number" step="0.01" min="0" placeholder="0.00" value={inventarioFormData.precioCosto} onChange={e => setInventarioFormData({...inventarioFormData, precioCosto: e.target.value})} required />
+                          </div>
+                          <div className="form-group">
+                            <label>Proveedor Recomendado</label>
+                            <input type="text" placeholder="Distribuidora principal..." value={inventarioFormData.proveedor} onChange={e => setInventarioFormData({...inventarioFormData, proveedor: e.target.value})} />
+                          </div>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
                           <label>Fecha Venc. (Opcional)</label>
                           <input type="date" value={inventarioFormData.fechaVencimiento} onChange={e => setInventarioFormData({...inventarioFormData, fechaVencimiento: e.target.value})} />
                         </div>
-                        <div className="form-group">
-                          <label>Proveedor</label>
-                          <input type="text" value={inventarioFormData.proveedor} onChange={e => setInventarioFormData({...inventarioFormData, proveedor: e.target.value})} />
-                        </div>
                       </div>
 
-                      <div className="modal-footer">
+                      <div className="modal-footer" style={{ padding: '20px 0 0', border: 'none', marginTop: '0' }}>
                         <button type="button" className="btn-cancel" onClick={() => setShowInventarioForm(false)} disabled={inventarioFormLoading}>
                           Cancelar
                         </button>
-                        <button type="submit" className="submit-button" disabled={inventarioFormLoading}>
+                        <button type="submit" className="submit-button" disabled={inventarioFormLoading} style={{ fontSize: '15px', padding: '12px 24px' }}>
                           {inventarioFormLoading ? 'Guardando...' : 'Guardar Producto'}
                         </button>
                       </div>
                     </form>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Floating AI Button ── */}
+              <button className="ai-floating-btn" onClick={() => setShowAIModal(true)} title="Predicción de Demanda IA">
+                ✨ <span>Predicción IA</span>
+              </button>
+
+              {/* ── AI PREDICTION MODAL ── */}
+              {showAIModal && (
+                <div className="modal-backdrop" onClick={() => setShowAIModal(false)}>
+                  <div className="modal-box" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+                    <div className="modal-header">
+                      <div>
+                        <h2>Predicción de Demanda - IA</h2>
+                        <p>Analiza el historial para proyectar sugerencias futuras.</p>
+                      </div>
+                      <button className="modal-close" onClick={() => setShowAIModal(false)}>✕</button>
+                    </div>
+
+                    <div style={{ padding: '20px 28px' }}>
+                      <div className="form-row-2" style={{ marginBottom: '12px' }}>
+                        <div className="form-group">
+                          <label>Productos a Analizar *</label>
+                          <select 
+                            className="modern-select" 
+                            defaultValue=""
+                            onChange={e => {
+                               const val = e.target.value;
+                               if (val && !aiSelectedProducts.includes(val)) {
+                                 setAiSelectedProducts([...aiSelectedProducts, val]);
+                               }
+                               e.target.value = '';
+                            }}
+                          >
+                            <option value="">Añadir producto...</option>
+                            {inventarioLista.map((item, idx) => (
+                              <option key={idx} value={item.nombre}>{item.nombre}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label>Meses a Predecir</label>
+                          <input 
+                            type="number" 
+                            min="1" 
+                            max="12" 
+                            value={aiMeses} 
+                            onChange={e => setAiMeses(e.target.value)} 
+                          />
+                        </div>
+                      </div>
+
+                      {aiSelectedProducts.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
+                          {aiSelectedProducts.map(prod => (
+                            <span key={prod} style={{ background: '#ede9fe', color: '#6d28d9', padding: '6px 12px', borderRadius: '16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '500' }}>
+                              {prod}
+                              <button type="button" onClick={() => setAiSelectedProducts(aiSelectedProducts.filter(p => p !== prod))} style={{ background: 'none', border: 'none', color: '#6d28d9', cursor: 'pointer', padding: '0', fontSize: '16px', lineHeight: '1', display: 'flex' }}>×</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <button 
+                        onClick={handleAIPrediction} 
+                        className="submit-button" 
+                        style={{ width: '100%', padding: '16px', fontSize: '15px' }}
+                        disabled={aiLoading || aiSelectedProducts.length === 0}
+                      >
+                        {aiLoading ? 'Calculando predicción...' : '🔮 Generar Predicción ahora'}
+                      </button>
+
+                      {aiError && <div className="error-message" style={{ marginTop: '16px' }}>{aiError}</div>}
+
+                      {aiResults && !aiLoading && (
+                        <div className="ai-results-list" style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '8px' }}>
+                          <h3 style={{ fontSize: '15px', color: '#1e293b', marginBottom: '12px' }}>Proyecciones estimadas ({aiMeses} meses)</h3>
+                          {aiResults.map((group, grpIdx) => (
+                            <div key={grpIdx} style={{ marginBottom: '16px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                              <h4 style={{ fontSize: '14px', color: '#6d28d9', margin: '0 0 12px', fontWeight: 'bold' }}>{group.producto}</h4>
+                              {group.predicciones.map((res, i) => (
+                                <div className="ai-result-card" key={i} style={{ marginBottom: '8px', background: 'white' }}>
+                                  <span className="ai-result-date">{res.fecha}</span>
+                                  <span className="ai-result-qty">{Number(res.cantidad_estimada).toFixed(1)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -697,7 +930,7 @@ function AdminDashboard() {
                     <p>Registro de las acciones recientes del sistema</p>
                   </div>
                   <button onClick={loadAuditoria} className="action-btn primary" disabled={auditoriaLoading}>
-                    {auditoriaLoading ? 'Actualizando...' : 'Actualizar'}
+                    {auditoriaLoading ? '⏳ Actualizando...' : '🔄 Actualizar'}
                   </button>
                 </div>
               </div>
@@ -769,7 +1002,7 @@ function AdminDashboard() {
                         onChange={(e) => setFiltroVentas({...filtroVentas, fechaFin: e.target.value})}
                       />
                     </div>
-                    <button type="submit" className="action-btn primary" style={{ height: '42px', padding: '0 24px' }} disabled={reporteVentasLoading}>
+                    <button type="submit" className="action-btn primary" style={{ height: '44px', padding: '0 24px', marginBottom: '22px' }} disabled={reporteVentasLoading}>
                       Filtrar
                     </button>
                   </form>
@@ -968,7 +1201,7 @@ function AdminDashboard() {
                     <form onSubmit={handleConfigSubmit} className="config-form">
                       <div className="form-row-3">
                         <div className="form-group">
-                          <label htmlFor="capacidadMaxima">Capacidad máxima (personas)</label>
+                          <label htmlFor="capacidadMaxima">Capacidad máxima</label>
                           <input type="number" id="capacidadMaxima" name="capacidadMaxima"
                             value={config.capacidadMaxima} onChange={handleConfigChange} min="1" required />
                         </div>
@@ -987,7 +1220,7 @@ function AdminDashboard() {
                       </div>
                       <div className="form-row">
                         <div className="form-group">
-                          <label htmlFor="tiempoPromedioMesa">Tiempo promedio por mesa (min)</label>
+                          <label htmlFor="tiempoPromedioMesa">Tiempo promedio por mesa</label>
                           <input type="number" id="tiempoPromedioMesa" name="tiempoPromedioMesa"
                             value={config.tiempoPromedioMesa} onChange={handleConfigChange} min="1" required />
                         </div>
@@ -1013,13 +1246,95 @@ function AdminDashboard() {
           )}
 
 
+          {/* ── Agregar Fecha Reserva (Disponibilidad) ── */}
+          {activeSection === 'disponibilidad' && (
+            <div className="panel-card">
+              <div className="panel-card-header">
+                <div>
+                  <h2>Fechas de Reserva</h2>
+                  <p>Inyecta fechas manuales con rangos horarios al sistema</p>
+                </div>
+                <button className="add-button" onClick={() => setShowDispoForm(!showDispoForm)}>
+                  {showDispoForm ? '✕ Cancelar' : '+ Agregar Fecha'}
+                </button>
+              </div>
+
+              {dispoSuccess && <div className="success-message" style={{ margin: '16px 24px' }}>{dispoSuccess}</div>}
+              {dispoError && <div className="error-message" style={{ margin: '16px 24px' }}>{dispoError}</div>}
+
+              {showDispoForm && (
+                <div className="inline-form" style={{ marginTop: '20px' }}>
+                  <h3 style={{ marginBottom: '16px' }}>Nueva Disponibilidad</h3>
+                  <form onSubmit={handleCreateAvailability}>
+                    <div className="form-row-3">
+                      <div className="form-group">
+                        <label>Fecha de Reserva *</label>
+                        <input type="date" value={dispoFormData.date} onChange={e => setDispoFormData({...dispoFormData, date: e.target.value})} min={new Date().toISOString().split('T')[0]} required />
+                      </div>
+                      <div className="form-group">
+                        <label>Hora de Inicio *</label>
+                        <input type="time" value={dispoFormData.startTime} onChange={e => setDispoFormData({...dispoFormData, startTime: e.target.value})} required />
+                      </div>
+                      <div className="form-group">
+                        <label>Hora de Cierre *</label>
+                        <input type="time" value={dispoFormData.endTime} onChange={e => setDispoFormData({...dispoFormData, endTime: e.target.value})} required />
+                      </div>
+                    </div>
+                    <div className="modal-footer" style={{ border: 'none', padding: 0, marginTop: '16px' }}>
+                      <button type="submit" className="submit-button" disabled={dispoLoading}>
+                        {dispoLoading ? 'Guardando Disponibilidad...' : 'Guardar Fecha'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Listado de Disponibilidad */}
+              <div style={{ marginTop: '24px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', padding: '0 24px', marginBottom: '12px' }}>Fechas configuradas actualmente</h3>
+                {availabilityError && <div className="error-message" style={{ margin: '0 24px' }}>{availabilityError}</div>}
+                {availabilityLoading ? (
+                  <div className="loading-state">Cargando fechas...</div>
+                ) : availabilityList.length === 0 ? (
+                  <div className="empty-state">No hay fechas de disponibilidad registradas</div>
+                ) : (
+                  <div className="table-container">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>FECHA</th>
+                          <th>HORARIO (INICIO - FIN)</th>
+                          <th>CREADO POR</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {availabilityList.map((item, idx) => (
+                          <tr key={item.id || item.date || idx}>
+                            <td><strong>{new Date(item.date).toLocaleDateString()}</strong></td>
+                            <td>
+                              {item.timeSlots?.map((slot, i) => (
+                                <div key={i} style={{ marginBottom: i > 0 ? '4px' : '0' }}>
+                                  <span className="badge" style={{ background: '#f3f4f6', color: '#374151' }}>{slot.startTime} a {slot.endTime}</span>
+                                </div>
+                              ))}
+                            </td>
+                            <td>{item.createdBy || 'Sistema'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
 
           {/* ── Períodos ── */}
           {activeSection === 'periodos' && (
             <div className="panel-card">
               <div className="panel-card-header">
                 <div>
-                  <h2>Períodos de Disponibilidad</h2>
                   <p>Genera predicciones de demanda para habilitar fechas de reserva</p>
                 </div>
                 <button className="add-button" onClick={() => setShowForm(!showForm)}>
@@ -1071,7 +1386,6 @@ function AdminDashboard() {
               ) : predicciones.length === 0 ? (
                 <div className="empty-state">
                   <p>No hay períodos generados todavía</p>
-                  <button onClick={() => setShowForm(true)} className="add-first-button">+ Crear primer período</button>
                 </div>
               ) : (
                 <div className="table-container">
@@ -1105,7 +1419,6 @@ function AdminDashboard() {
             <div className="panel-card">
               <div className="panel-card-header">
                 <div>
-                  <h2>Super Administradores</h2>
                   <p>Gestiona los usuarios con acceso total al sistema</p>
                 </div>
                 <button className="add-button" onClick={() => setShowAdminForm(true)}>
@@ -1120,7 +1433,6 @@ function AdminDashboard() {
               ) : admins.length === 0 ? (
                 <div className="empty-state">
                   <p>No hay administradores registrados</p>
-                  <button onClick={() => setShowAdminForm(true)} className="add-first-button">+ Crear administrador</button>
                 </div>
               ) : (
                 <div className="table-container">
@@ -1183,9 +1495,9 @@ function AdminDashboard() {
                         <div className="form-group" style={{ gridColumn: 'span 2' }}>
                           <label htmlFor="usuarioId">Usuario a promover</label>
                           <input type="text" id="usuarioNombreDisplay" name="usuarioNombreDisplay"
-                            value={profile ? `${profile.firstName} ${profile.lastName} (${profile.email})` : 'Cargando...'} 
+                            value={profile ? `${profile.firstName || ''} ${profile.lastName || ''} (${profile.email || profile.userName || 'Local'})` : 'Cargando...'} 
                             disabled className="disabled-input" />
-                          <span className="input-hint">El ID interno ({profile?.id}) se enviará automáticamente.</span>
+                          <span className="input-hint">El identificador ({profile?.id || profile?.userName || 'Auto'}) se enviará automáticamente.</span>
                         </div>
                       </div>
                       
@@ -1229,7 +1541,6 @@ function AdminDashboard() {
             <div className="panel-card">
               <div className="panel-card-header">
                 <div>
-                  <h2>Admins Activos</h2>
                   <p>Listado de Super Administradores actualmente activos</p>
                 </div>
                 <form onSubmit={handleSearchAdmins} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
